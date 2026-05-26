@@ -1,0 +1,379 @@
+#Constants {
+    includeNativeBool: true;
+    defaultSourceDPIInt: "0";
+    useLargerTextScaleBool: true;
+    lightweightPickerBool: true;
+}
+
+Form, ScreenContent, SectionHeader {
+    background-color: #f6f7f9;
+    color: #111827;
+}
+
+Toolbar, TitleArea {
+    background-color: #f6f7f9;
+    border: none;
+}
+
+Title, TitleCommand, BackCommand, Command, OverflowCommand {
+    background-color: transparent;
+    border: none;
+    color: #111827;
+    font-family: "native:MainRegular";
+    font-size: 3mm;
+}
+
+SideNavigationPanel {
+    background-color: #ffffff;
+    padding: 2mm 1mm 1mm 1mm;
+}
+
+SideCommand {
+    padding: 2mm;
+    margin: 0;
+    border: none;
+    text-decoration: none;
+    text-align: left;
+    color: #111827;
+    font-family: "native:MainRegular";
+    font-size: 3.6mm;
+    border-bottom: 1px solid #d7dee8;
+}
+
+@media platform-ios {
+    SideNavigationPanel {
+        padding: 6mm 1mm 1mm 1mm;
+    }
+}
+
+ScreenContent {
+    padding: 2mm;
+}
+
+HeroPanel, StudyCard, SettingsRow, InfoPanel {
+    background-color: #ffffff;
+    border: 1px solid #d7dee8;
+    border-radius: 2mm;
+    padding: 2.5mm;
+    margin: 0 0 2mm 0;
+}
+
+HeroCaption {
+    color: #526070;
+    font-family: "native:MainRegular";
+    font-size: 2.6mm;
+}
+
+HeroValue {
+    color: #111827;
+    font-family: "native:MainBold";
+    font-size: 7mm;
+    padding: 0.5mm 0 0.5mm 0;
+}
+
+HeroMeta, BodyText, AppMeta, MutedText {
+    color: #526070;
+    font-family: "native:MainRegular";
+    font-size: 2.8mm;
+}
+
+GoodText {
+    color: #047857;
+    font-family: "native:MainRegular";
+    font-size: 2.8mm;
+}
+
+SectionHeader {
+    padding: 2mm 0 1mm 0;
+}
+
+SectionTitle {
+    color: #111827;
+    font-family: "native:MainBold";
+    font-size: 3.3mm;
+}
+
+WarningPanel {
+    background-color: #fff8e6;
+    border: 1px solid #f2c94c;
+    border-radius: 2mm;
+    padding: 2.5mm;
+    margin: 0 0 2mm 0;
+}
+
+WarningTitle, InfoTitle {
+    color: #111827;
+    font-family: "native:MainBold";
+    font-size: 3.1mm;
+}
+
+WarningText {
+    color: #7a4e00;
+    font-family: "native:MainRegular";
+    font-size: 2.8mm;
+}
+
+AppName, SettingsLabel {
+    color: #111827;
+    font-family: "native:MainBold";
+    font-size: 3.2mm;
+}
+
+Button, PrimaryButton, SecondaryButton, SmallButton, IconButton, LinkButton, DangerButton, SettingsPicker {
+    font-family: "native:MainBold";
+    font-size: 2.9mm;
+    border-radius: 2mm;
+    padding: 1.7mm 2.4mm;
+    margin: 1mm 0 1mm 0;
+}
+
+Button, PrimaryButton {
+    background-color: #2563eb;
+    border: 1px solid #2563eb;
+    color: #ffffff;
+}
+
+Button.pressed, PrimaryButton.pressed {
+    background-color: #1d4ed8;
+    border: 1px solid #1d4ed8;
+    color: #ffffff;
+}
+
+SecondaryButton, SmallButton, IconButton, SettingsPicker {
+    background-color: #e5edf8;
+    border: 1px solid #c7d4e6;
+    color: #111827;
+}
+
+SecondaryButton.pressed, SmallButton.pressed, IconButton.pressed, SettingsPicker.pressed {
+    background-color: #d5e2f3;
+    border: 1px solid #b8c7db;
+    color: #111827;
+}
+
+SmallButton, IconButton {
+    padding: 1.5mm 2mm;
+    margin: 0;
+}
+
+LinkButton {
+    background-color: transparent;
+    border: none;
+    color: #2563eb;
+    padding: 1mm 0;
+}
+
+SettingsValue {
+    color: #526070;
+    font-family: "native:MainRegular";
+    font-size: 2.9mm;
+    padding: 1.7mm 2mm;
+}
+
+DangerButton {
+    background-color: #b91c1c;
+    border: 1px solid #991b1b;
+    color: #ffffff;
+}
+
+DangerButton.pressed {
+    background-color: #991b1b;
+    border: 1px solid #7f1d1d;
+    color: #ffffff;
+}
+
+SettingsCheckBox {
+    color: #111827;
+    font-family: "native:MainRegular";
+    font-size: 3mm;
+}
+
+SettingsField {
+    color: #111827;
+    background-color: #ffffff;
+    border: 1px solid #c7d4e6;
+    border-radius: 1mm;
+    padding: 1.5mm;
+    margin: 0 0 0 2mm;
+    font-family: "native:MainRegular";
+    font-size: 3mm;
+}
+
+DialogBody, DialogTitle {
+    color: #111827;
+}
+
+DialogBody {
+    font-family: "native:MainRegular";
+    font-size: 2.8mm;
+}
+
+DialogTitle {
+    font-family: "native:MainBold";
+    font-size: 3.3mm;
+}
+
+Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
+    background-color: transparent;
+    border: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    Form, ScreenContent, SectionHeader {
+        background-color: #101418;
+        color: #eef2f6;
+    }
+
+    Toolbar, TitleArea {
+        background-color: #101418;
+        border: none;
+    }
+
+    Title, TitleCommand, BackCommand, Command, OverflowCommand {
+        background-color: transparent;
+        border: none;
+        color: #eef2f6;
+        font-family: "native:MainRegular";
+        font-size: 3mm;
+    }
+
+    SideNavigationPanel {
+        background-color: #171d22;
+    }
+
+    SideCommand {
+        color: #eef2f6;
+        border-bottom: 1px solid #2d3741;
+    }
+
+    HeroPanel, StudyCard, SettingsRow, InfoPanel {
+        background-color: #171d22;
+        border: 1px solid #2d3741;
+    }
+
+    HeroCaption, HeroMeta, BodyText, AppMeta, MutedText {
+        color: #aeb8c2;
+        font-family: "native:MainRegular";
+        font-size: 2.8mm;
+    }
+
+    HeroCaption {
+        font-size: 2.6mm;
+    }
+
+    HeroValue {
+        color: #ffffff;
+        font-family: "native:MainBold";
+        font-size: 7mm;
+        padding: 0.5mm 0 0.5mm 0;
+    }
+
+    SectionTitle {
+        color: #ffffff;
+        font-family: "native:MainBold";
+        font-size: 3.3mm;
+    }
+
+    WarningTitle, InfoTitle {
+        color: #ffffff;
+        font-family: "native:MainBold";
+        font-size: 3.1mm;
+    }
+
+    AppName, SettingsLabel {
+        color: #ffffff;
+        font-family: "native:MainBold";
+        font-size: 3.2mm;
+    }
+
+    GoodText {
+        color: #86efac;
+        font-family: "native:MainRegular";
+        font-size: 2.8mm;
+    }
+
+    WarningPanel {
+        background-color: #2a2213;
+        border: 1px solid #7c5c19;
+    }
+
+    WarningText {
+        color: #f7d98a;
+        font-family: "native:MainRegular";
+        font-size: 2.8mm;
+    }
+
+    SecondaryButton, SmallButton, IconButton, SettingsPicker {
+        background-color: #334155;
+        border: 1px solid #475569;
+        color: #ffffff;
+        font-family: "native:MainBold";
+        font-size: 2.9mm;
+        border-radius: 2mm;
+        padding: 1.7mm 2.4mm;
+        margin: 1mm 0 1mm 0;
+    }
+
+    SecondaryButton.pressed, SmallButton.pressed, IconButton.pressed, SettingsPicker.pressed {
+        background-color: #475569;
+        border: 1px solid #64748b;
+        color: #ffffff;
+    }
+
+    SmallButton, IconButton {
+        padding: 1.5mm 2mm;
+        margin: 0;
+    }
+
+    LinkButton {
+        background-color: transparent;
+        border: none;
+        color: #c4b5fd;
+        font-family: "native:MainBold";
+        font-size: 2.9mm;
+        padding: 1mm 0;
+    }
+
+    SettingsValue {
+        color: #aeb8c2;
+        font-family: "native:MainRegular";
+        font-size: 2.9mm;
+        padding: 1.7mm 2mm;
+    }
+
+    SettingsCheckBox {
+        color: #eef2f6;
+        font-family: "native:MainRegular";
+        font-size: 3mm;
+    }
+
+    SettingsField {
+        color: #ffffff;
+        background-color: #101418;
+        border: 1px solid #475569;
+        border-radius: 1mm;
+        padding: 1.5mm;
+        margin: 0 0 0 2mm;
+        font-family: "native:MainRegular";
+        font-size: 3mm;
+    }
+
+    DialogBody, DialogTitle {
+        color: #eef2f6;
+    }
+
+    DialogBody {
+        font-family: "native:MainRegular";
+        font-size: 2.8mm;
+    }
+
+    DialogTitle {
+        font-family: "native:MainBold";
+        font-size: 3.3mm;
+    }
+
+    Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
+        background-color: transparent;
+        border: none;
+    }
+}
