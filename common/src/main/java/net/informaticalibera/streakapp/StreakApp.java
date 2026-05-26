@@ -10,25 +10,11 @@ import com.codename1.io.Util;
 import com.codename1.l10n.L10NManager;
 import com.codename1.system.Lifecycle;
 import com.codename1.system.NativeLookup;
-import com.codename1.ui.Button;
-import com.codename1.ui.CheckBox;
-import com.codename1.ui.Command;
-import com.codename1.ui.Component;
-import com.codename1.ui.Container;
-import com.codename1.ui.Dialog;
-import com.codename1.ui.Display;
-import com.codename1.ui.FontImage;
-import com.codename1.ui.Form;
-import com.codename1.ui.Label;
-import com.codename1.ui.TextArea;
-import com.codename1.ui.TextField;
-import com.codename1.ui.Toolbar;
+import com.codename1.ui.*;
 import com.codename1.ui.events.FocusListener;
 import com.codename1.ui.layouts.BorderLayout;
 import com.codename1.ui.layouts.BoxLayout;
 import com.codename1.ui.layouts.FlowLayout;
-import com.codename1.ui.plaf.Border;
-import com.codename1.ui.plaf.Style;
 import com.codename1.ui.plaf.UIManager;
 import com.codename1.ui.spinner.Picker;
 import com.codename1.ui.util.UITimer;
@@ -101,15 +87,14 @@ public class StreakApp extends Lifecycle {
         applyDarkModePreference();
         super.init(context);
         installLocalizationBundle();
-        styleLightweightPicker();
         applyFontScalePreference();
     }
 
     @Override
     public void start() {
         super.start();
-        Form current = com.codename1.ui.CN.getCurrentForm();
-        if (booted && (current == homeForm || getCurrentForm() == homeForm || homeForm == null)) {
+        Form current = CN.getCurrentForm();
+        if (booted && (current == homeForm || homeForm == null)) {
             refreshHomeAfterResume();
         }
     }
@@ -140,7 +125,6 @@ public class StreakApp extends Lifecycle {
         applyDarkModePreference();
         UIManager.initFirstTheme(getThemeName());
         installLocalizationBundle();
-        styleLightweightPicker();
         applyFontScalePreference();
     }
 
@@ -162,100 +146,19 @@ public class StreakApp extends Lifecycle {
         }
     }
 
-    private void styleLightweightPicker() {
-        boolean dark = isDarkThemeActive();
-        int surface = dark ? 0x171d22 : 0xffffff;
-        int raised = dark ? 0x334155 : 0xe5edf8;
-        int pressed = dark ? 0x475569 : 0xd5e2f3;
-        int border = dark ? 0x475569 : 0xc7d4e6;
-        int text = dark ? 0xeef2f6 : 0x111827;
-        int muted = dark ? 0xaeb8c2 : 0x526070;
-
-        styleFlat("PickerDialog", surface, text);
-        styleFlat("PickerDialogContent", surface, text);
-        styleFlat("PickerDialogTablet", surface, text);
-        styleFlat("PickerDialogContentTablet", surface, text);
-        styleFlat("PickerButtonBar", surface, text);
-        styleFlat("PickerButtonBarTablet", surface, text);
-        styleFlat("Spinner3DOverlay", surface, text);
-        styleSpinnerRows(surface, text, muted);
-        stylePickerButton("PickerButton", raised, pressed, border, text);
-        stylePickerButton("PickerButtonTablet", raised, pressed, border, text);
-    }
-
-    private boolean isDarkThemeActive() {
-        String mode = Preferences.get(PREF_THEME_MODE, THEME_SYSTEM);
-        if (THEME_DARK.equals(mode)) {
-            return true;
-        }
-        if (THEME_LIGHT.equals(mode)) {
-            return false;
-        }
-        return Boolean.TRUE.equals(Display.getInstance().isDarkMode());
-    }
-
-    private void styleFlat(String uiid, int background, int foreground) {
-        Style style = UIManager.getInstance().getComponentStyle(uiid);
-        style.setBgColor(background);
-        style.setBgTransparency(255);
-        style.setFgColor(foreground);
-        style.setBorder(Border.createEmpty());
-        style.setMargin(0, 0, 0, 0);
-        style.setPadding(0, 0, 0, 0);
-        UIManager.getInstance().setComponentStyle(uiid, style);
-    }
-
-    private void styleSpinnerRows(int background, int text, int muted) {
-        Style row = UIManager.getInstance().getComponentStyle("Spinner3DRow");
-        row.setBgColor(background);
-        row.setBgTransparency(255);
-        row.setFgColor(muted);
-        row.setBorder(Border.createEmpty());
-        row.setAlignment(Component.CENTER);
-        UIManager.getInstance().setComponentStyle("Spinner3DRow", row);
-
-        Style selected = UIManager.getInstance().getComponentSelectedStyle("Spinner3DRow");
-        selected.setBgColor(background);
-        selected.setBgTransparency(255);
-        selected.setFgColor(text);
-        selected.setBorder(Border.createEmpty());
-        selected.setAlignment(Component.CENTER);
-        UIManager.getInstance().setComponentSelectedStyle("Spinner3DRow", selected);
-    }
-
-    private void stylePickerButton(String uiid, int background, int pressedBackground, int borderColor, int text) {
-        Style normal = UIManager.getInstance().getComponentStyle(uiid);
-        normal.setBgColor(background);
-        normal.setBgTransparency(255);
-        normal.setFgColor(text);
-        normal.setBorder(Border.createLineBorder(1, borderColor));
-        normal.setMargin(1, 1, 1, 1);
-        normal.setPadding(2, 2, 2, 2);
-        UIManager.getInstance().setComponentStyle(uiid, normal);
-
-        Style selected = new Style(normal);
-        selected.setBgColor(pressedBackground);
-        UIManager.getInstance().setComponentSelectedStyle(uiid, selected);
-
-        Style press = new Style(selected);
-        UIManager.getInstance().setComponentStyle(uiid, press, "press");
-
-        Style disabled = new Style(normal);
-        disabled.setFgColor(text);
-        UIManager.getInstance().setComponentStyle(uiid, disabled, "dis");
-    }
-
-    private void setFontScalePercent(int requestedPercent) {
+    private void setFontScalePercent(int requestedPercent, Label valueLabel) {
         int currentPercent = currentFontScalePercent();
         int nextPercent = Math.max(MIN_FONT_SCALE_PERCENT, Math.min(MAX_FONT_SCALE_PERCENT, requestedPercent));
         if (nextPercent == currentPercent) {
+            updateFontScaleValue(valueLabel, nextPercent);
             return;
         }
-        Form currentForm = getCurrentForm();
+        Form currentForm = CN.getCurrentForm();
+        Preferences.set(PREF_FONT_SCALE, nextPercent / 100f);
+        updateFontScaleValue(valueLabel, nextPercent);
         if (currentForm != null) {
             AutoShrinkSupport.prepareForThemeRefresh(currentForm);
         }
-        Preferences.set(PREF_FONT_SCALE, nextPercent / 100f);
         UIManager.getInstance().zoomFonts(nextPercent / (float) currentPercent);
         refreshFormAfterThemeChange(currentForm);
     }
@@ -271,6 +174,7 @@ public class StreakApp extends Lifecycle {
         AutoShrinkSupport.refreshTitleComponent(form);
         form.refreshTheme();
         form.setShouldCalcPreferredSize(true);
+        AutoShrinkSupport.resetAndApply(form);
         form.revalidate();
         form.revalidateLater();
         form.repaint();
@@ -322,7 +226,7 @@ public class StreakApp extends Lifecycle {
         startThread(() -> {
             Util.sleep(RESUME_REFRESH_DELAY_MILLIS);
             callSerially(() -> {
-                if (com.codename1.ui.CN.getCurrentForm() == homeForm) {
+                if (CN.getCurrentForm() == homeForm) {
                     refreshHomeAsync(false);
                 }
             });
@@ -538,8 +442,7 @@ public class StreakApp extends Lifecycle {
         }
         returnRefreshAttemptsRemaining = RETURN_REFRESH_ATTEMPTS;
         returnRefreshTimer = UITimer.timer(RETURN_REFRESH_INTERVAL_MILLIS, true, homeForm, () -> {
-            if (Display.getInstance().isMinimized()
-                    || com.codename1.ui.CN.getCurrentForm() != homeForm) {
+            if (Display.getInstance().isMinimized() || CN.getCurrentForm() != homeForm) {
                 return;
             }
             refreshHomeAsync(false);
@@ -649,6 +552,7 @@ public class StreakApp extends Lifecycle {
 
         Picker picker = new Picker();
         picker.setUIID("SettingsPicker");
+        picker.setTraversable(false);
         picker.setUseLightweightPopup(true);
         picker.setType(Display.PICKER_TYPE_STRINGS);
         picker.setStrings(themeLabel(THEME_SYSTEM), themeLabel(THEME_LIGHT), themeLabel(THEME_DARK));
@@ -669,6 +573,7 @@ public class StreakApp extends Lifecycle {
 
         Picker picker = new Picker();
         picker.setUIID("SettingsPicker");
+        picker.setTraversable(false);
         picker.setUseLightweightPopup(true);
         picker.setType(Display.PICKER_TYPE_STRINGS);
         picker.setStrings(languageLabel(LANGUAGE_SYSTEM), languageLabel(LANGUAGE_ENGLISH), languageLabel(LANGUAGE_ITALIAN));
@@ -697,16 +602,13 @@ public class StreakApp extends Lifecycle {
         Button larger = button("", "IconButton", FontImage.MATERIAL_TEXT_INCREASE);
 
         smaller.addActionListener(e -> {
-            setFontScalePercent(currentFontScalePercent() - FONT_SCALE_STEP_PERCENT);
-            updateFontScaleValue(value);
+            setFontScalePercent(currentFontScalePercent() - FONT_SCALE_STEP_PERCENT, value);
         });
         reset.addActionListener(e -> {
-            setFontScalePercent(100);
-            updateFontScaleValue(value);
+            setFontScalePercent(100, value);
         });
         larger.addActionListener(e -> {
-            setFontScalePercent(currentFontScalePercent() + FONT_SCALE_STEP_PERCENT);
-            updateFontScaleValue(value);
+            setFontScalePercent(currentFontScalePercent() + FONT_SCALE_STEP_PERCENT, value);
         });
 
         controls.add(smaller);
@@ -717,14 +619,9 @@ public class StreakApp extends Lifecycle {
         return row;
     }
 
-    private void updateFontScaleValue(Label value) {
-        value.setText(fontScaleText());
-        Form current = getCurrentForm();
-        if (current != null) {
-            current.setShouldCalcPreferredSize(true);
-            current.revalidate();
-            current.revalidateLater();
-            AutoShrinkSupport.resetAndApplyLater(current);
+    private void updateFontScaleValue(Label value, int percent) {
+        if (value != null) {
+            value.setText(fontScaleText(percent));
         }
     }
 
@@ -735,6 +632,7 @@ public class StreakApp extends Lifecycle {
 
         Picker picker = new Picker();
         picker.setUIID("SettingsPicker");
+        picker.setTraversable(false);
         picker.setUseLightweightPopup(true);
         picker.setType(Display.PICKER_TYPE_STRINGS);
         picker.setStrings(dayModeLabel(DAY_CALENDAR), dayModeLabel(DAY_STUDY));
@@ -803,7 +701,11 @@ public class StreakApp extends Lifecycle {
     }
 
     private String fontScaleText() {
-        return text("settings.textSizeValue", "{0}%", currentFontScalePercent());
+        return fontScaleText(currentFontScalePercent());
+    }
+
+    private String fontScaleText(int percent) {
+        return text("settings.textSizeValue", "{0}%", percent);
     }
 
     private void navigateHome() {

@@ -212,6 +212,7 @@ public final class AutoShrinkSupport {
     private static void visit(Component component) {
         if (component instanceof SpanLabel) {
             // SpanLabel already wraps across multiple lines, so shrinking it would be counterproductive.
+            refreshSpanLabelMetrics((SpanLabel) component);
         } else if (component instanceof Label) {
             configure((Label) component);
         }
@@ -230,7 +231,9 @@ public final class AutoShrinkSupport {
      * @param clearOriginalFont whether the cached base font should also be forgotten
      */
     private static void reset(Component component, boolean clearOriginalFont) {
-        if (component instanceof Label) {
+        if (component instanceof SpanLabel) {
+            refreshSpanLabelMetrics((SpanLabel) component);
+        } else if (component instanceof Label) {
             resetLabel((Label) component, clearOriginalFont);
         }
         if (component instanceof Container) {
@@ -341,6 +344,23 @@ public final class AutoShrinkSupport {
         if (text != null) {
             label.setText(text);
         }
+        label.setShouldCalcPreferredSize(true);
+        label.repaint();
+    }
+
+    /**
+     * Forces a SpanLabel to recalculate the wrapped rows of its internal TextArea.
+     *
+     * @param label span label to refresh
+     */
+    private static void refreshSpanLabelMetrics(SpanLabel label) {
+        String text = label.getText();
+        if (text != null) {
+            label.setText(text);
+        }
+        TextArea textComponent = label.getTextComponent();
+        textComponent.setShouldCalcPreferredSize(true);
+        textComponent.repaint();
         label.setShouldCalcPreferredSize(true);
         label.repaint();
     }
