@@ -23,6 +23,28 @@ Title, TitleCommand, BackCommand, Command, OverflowCommand {
     font-size: 3mm;
 }
 
+TitleCommand.pressed, BackCommand.pressed, Command.pressed, OverflowCommand.pressed, ToolbarIconButton.pressed, ToolbarIconButtonActive {
+    background-color: #e5edf8;
+    border: 1px solid #c7d4e6;
+    color: #111827;
+}
+
+ToolbarIconButton, ToolbarIconButtonActive {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: #111827;
+    font-family: "native:MainRegular";
+    font-size: 3mm;
+    border-radius: 2mm;
+    padding: 1.2mm 1.8mm;
+}
+
+ToolbarIconButton.disabled, ToolbarIconButtonActive.disabled {
+    background-color: #d5e2f3;
+    border: 1px solid #b8c7db;
+    color: #526070;
+}
+
 SideNavigationPanel {
     background-color: #ffffff;
     padding: 2mm 1mm 1mm 1mm;
@@ -156,6 +178,13 @@ SmallButton, IconButton {
     margin: 0;
 }
 
+FontScaleControls {
+    background-color: transparent;
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
 LinkButton {
     background-color: transparent;
     border: none;
@@ -203,6 +232,30 @@ DialogBody, DialogTitle {
     color: #111827;
 }
 
+PickerDialog, PickerDialogContent, PickerDialogTablet, PickerDialogContentTablet, PopupDialog, PopupContentPane, Dialog, DialogContentPane, DialogCommandArea, ComboBoxList, Spinner3DOverlay {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d7dee8;
+}
+
+PickerButtonBar, PickerButtonBarTablet {
+    background-color: #ffffff;
+    color: #111827;
+    border: none;
+}
+
+PickerButton, PickerButtonTablet, ComboBoxItem, SpinnerRenderer, Spinner3DRow {
+    background-color: #ffffff;
+    color: #111827;
+    font-family: "native:MainRegular";
+    font-size: 3mm;
+}
+
+PickerButton.pressed, PickerButtonTablet.pressed, ComboBoxItem.pressed, Spinner3DRow.selected {
+    background-color: #e5edf8;
+    color: #111827;
+}
+
 DialogBody {
     font-family: "native:MainRegular";
     font-size: 2.8mm;
@@ -235,6 +288,28 @@ Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
         color: #eef2f6;
         font-family: "native:MainRegular";
         font-size: 3mm;
+    }
+
+    TitleCommand.pressed, BackCommand.pressed, Command.pressed, OverflowCommand.pressed, ToolbarIconButton.pressed, ToolbarIconButtonActive {
+        background-color: #243142;
+        border: 1px solid #64748b;
+        color: #ffffff;
+    }
+
+    ToolbarIconButton, ToolbarIconButtonActive {
+        background-color: transparent;
+        border: 1px solid transparent;
+        color: #c4b5fd;
+        font-family: "native:MainRegular";
+        font-size: 3mm;
+        border-radius: 2mm;
+        padding: 1.2mm 1.8mm;
+    }
+
+    ToolbarIconButton.disabled, ToolbarIconButtonActive.disabled {
+        background-color: #334155;
+        border: 1px solid #64748b;
+        color: #aeb8c2;
     }
 
     SideNavigationPanel {
@@ -325,6 +400,13 @@ Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
         margin: 0;
     }
 
+    FontScaleControls {
+        background-color: transparent;
+        border: none;
+        margin: 0;
+        padding: 0;
+    }
+
     LinkButton {
         background-color: transparent;
         border: none;
@@ -360,6 +442,30 @@ Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
 
     DialogBody, DialogTitle {
         color: #eef2f6;
+    }
+
+    PickerDialog, PickerDialogContent, PickerDialogTablet, PickerDialogContentTablet, PopupDialog, PopupContentPane, Dialog, DialogContentPane, DialogCommandArea, ComboBoxList, Spinner3DOverlay {
+        background-color: #171d22;
+        color: #eef2f6;
+        border: 1px solid #2d3741;
+    }
+
+    PickerButtonBar, PickerButtonBarTablet {
+        background-color: #171d22;
+        color: #eef2f6;
+        border: none;
+    }
+
+    PickerButton, PickerButtonTablet, ComboBoxItem, SpinnerRenderer, Spinner3DRow {
+        background-color: #171d22;
+        color: #eef2f6;
+        font-family: "native:MainRegular";
+        font-size: 3mm;
+    }
+
+    PickerButton.pressed, PickerButtonTablet.pressed, ComboBoxItem.pressed, Spinner3DRow.selected {
+        background-color: #334155;
+        color: #ffffff;
     }
 
     DialogBody {

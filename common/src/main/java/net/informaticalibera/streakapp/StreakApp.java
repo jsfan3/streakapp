@@ -27,6 +27,8 @@ import com.codename1.ui.events.FocusListener;
 import com.codename1.ui.layouts.BorderLayout;
 import com.codename1.ui.layouts.BoxLayout;
 import com.codename1.ui.layouts.FlowLayout;
+import com.codename1.ui.plaf.Border;
+import com.codename1.ui.plaf.Style;
 import com.codename1.ui.plaf.UIManager;
 import com.codename1.ui.spinner.Picker;
 import com.codename1.ui.util.UITimer;
@@ -66,12 +68,13 @@ public class StreakApp extends Lifecycle {
     private static final String DAY_CALENDAR = "calendar";
     private static final String DAY_STUDY = "study";
     private static final int STUDY_DAY_START_HOUR = 4;
-    private static final float FONT_SCALE_STEP = 1.1f;
-    private static final float MIN_FONT_SCALE = 0.7f;
-    private static final float MAX_FONT_SCALE = 1.8f;
+    private static final int FONT_SCALE_STEP_PERCENT = 10;
+    private static final int MIN_FONT_SCALE_PERCENT = 70;
+    private static final int MAX_FONT_SCALE_PERCENT = 180;
     private static final int RESUME_REFRESH_DELAY_MILLIS = 1500;
     private static final int RETURN_REFRESH_INTERVAL_MILLIS = 2000;
     private static final int RETURN_REFRESH_ATTEMPTS = 3;
+    private static final int MIN_REFRESH_BUSY_MILLIS = 500;
     private static final int ANDROID_BACK_KEY = -23452;
 
     private static final StudyApp[] DEFAULT_APPS = {
@@ -88,6 +91,7 @@ public class StreakApp extends Lifecycle {
     private Form settingsForm;
     private DayProgress lastProgress;
     private UITimer returnRefreshTimer;
+    private Component refreshCommandComponent;
     private int returnRefreshAttemptsRemaining;
     private boolean booted;
     private volatile boolean refreshInProgress;
@@ -97,6 +101,7 @@ public class StreakApp extends Lifecycle {
         applyDarkModePreference();
         super.init(context);
         installLocalizationBundle();
+        styleLightweightPicker();
         applyFontScalePreference();
     }
 
@@ -135,6 +140,7 @@ public class StreakApp extends Lifecycle {
         applyDarkModePreference();
         UIManager.initFirstTheme(getThemeName());
         installLocalizationBundle();
+        styleLightweightPicker();
         applyFontScalePreference();
     }
 
@@ -150,20 +156,125 @@ public class StreakApp extends Lifecycle {
     }
 
     private void applyFontScalePreference() {
-        float scale = Preferences.get(PREF_FONT_SCALE, 1f);
-        if (scale != 1f) {
-            UIManager.getInstance().zoomFonts(scale);
+        int percent = currentFontScalePercent();
+        if (percent != 100) {
+            UIManager.getInstance().zoomFonts(percent / 100f);
         }
     }
 
-    private void setFontScale(float requestedScale) {
-        float current = Preferences.get(PREF_FONT_SCALE, 1f);
-        float next = Math.max(MIN_FONT_SCALE, Math.min(MAX_FONT_SCALE, requestedScale));
-        if (Math.abs(next - current) < 0.001f) {
+    private void styleLightweightPicker() {
+        boolean dark = isDarkThemeActive();
+        int surface = dark ? 0x171d22 : 0xffffff;
+        int raised = dark ? 0x334155 : 0xe5edf8;
+        int pressed = dark ? 0x475569 : 0xd5e2f3;
+        int border = dark ? 0x475569 : 0xc7d4e6;
+        int text = dark ? 0xeef2f6 : 0x111827;
+        int muted = dark ? 0xaeb8c2 : 0x526070;
+
+        styleFlat("PickerDialog", surface, text);
+        styleFlat("PickerDialogContent", surface, text);
+        styleFlat("PickerDialogTablet", surface, text);
+        styleFlat("PickerDialogContentTablet", surface, text);
+        styleFlat("PickerButtonBar", surface, text);
+        styleFlat("PickerButtonBarTablet", surface, text);
+        styleFlat("Spinner3DOverlay", surface, text);
+        styleSpinnerRows(surface, text, muted);
+        stylePickerButton("PickerButton", raised, pressed, border, text);
+        stylePickerButton("PickerButtonTablet", raised, pressed, border, text);
+    }
+
+    private boolean isDarkThemeActive() {
+        String mode = Preferences.get(PREF_THEME_MODE, THEME_SYSTEM);
+        if (THEME_DARK.equals(mode)) {
+            return true;
+        }
+        if (THEME_LIGHT.equals(mode)) {
+            return false;
+        }
+        return Boolean.TRUE.equals(Display.getInstance().isDarkMode());
+    }
+
+    private void styleFlat(String uiid, int background, int foreground) {
+        Style style = UIManager.getInstance().getComponentStyle(uiid);
+        style.setBgColor(background);
+        style.setBgTransparency(255);
+        style.setFgColor(foreground);
+        style.setBorder(Border.createEmpty());
+        style.setMargin(0, 0, 0, 0);
+        style.setPadding(0, 0, 0, 0);
+        UIManager.getInstance().setComponentStyle(uiid, style);
+    }
+
+    private void styleSpinnerRows(int background, int text, int muted) {
+        Style row = UIManager.getInstance().getComponentStyle("Spinner3DRow");
+        row.setBgColor(background);
+        row.setBgTransparency(255);
+        row.setFgColor(muted);
+        row.setBorder(Border.createEmpty());
+        row.setAlignment(Component.CENTER);
+        UIManager.getInstance().setComponentStyle("Spinner3DRow", row);
+
+        Style selected = UIManager.getInstance().getComponentSelectedStyle("Spinner3DRow");
+        selected.setBgColor(background);
+        selected.setBgTransparency(255);
+        selected.setFgColor(text);
+        selected.setBorder(Border.createEmpty());
+        selected.setAlignment(Component.CENTER);
+        UIManager.getInstance().setComponentSelectedStyle("Spinner3DRow", selected);
+    }
+
+    private void stylePickerButton(String uiid, int background, int pressedBackground, int borderColor, int text) {
+        Style normal = UIManager.getInstance().getComponentStyle(uiid);
+        normal.setBgColor(background);
+        normal.setBgTransparency(255);
+        normal.setFgColor(text);
+        normal.setBorder(Border.createLineBorder(1, borderColor));
+        normal.setMargin(1, 1, 1, 1);
+        normal.setPadding(2, 2, 2, 2);
+        UIManager.getInstance().setComponentStyle(uiid, normal);
+
+        Style selected = new Style(normal);
+        selected.setBgColor(pressedBackground);
+        UIManager.getInstance().setComponentSelectedStyle(uiid, selected);
+
+        Style press = new Style(selected);
+        UIManager.getInstance().setComponentStyle(uiid, press, "press");
+
+        Style disabled = new Style(normal);
+        disabled.setFgColor(text);
+        UIManager.getInstance().setComponentStyle(uiid, disabled, "dis");
+    }
+
+    private void setFontScalePercent(int requestedPercent) {
+        int currentPercent = currentFontScalePercent();
+        int nextPercent = Math.max(MIN_FONT_SCALE_PERCENT, Math.min(MAX_FONT_SCALE_PERCENT, requestedPercent));
+        if (nextPercent == currentPercent) {
             return;
         }
-        Preferences.set(PREF_FONT_SCALE, next);
-        UIManager.getInstance().zoomFonts(next / current);
+        Form currentForm = getCurrentForm();
+        if (currentForm != null) {
+            AutoShrinkSupport.prepareForThemeRefresh(currentForm);
+        }
+        Preferences.set(PREF_FONT_SCALE, nextPercent / 100f);
+        UIManager.getInstance().zoomFonts(nextPercent / (float) currentPercent);
+        refreshFormAfterThemeChange(currentForm);
+    }
+
+    private int currentFontScalePercent() {
+        return Math.round(Preferences.get(PREF_FONT_SCALE, 1f) * 100f);
+    }
+
+    private void refreshFormAfterThemeChange(Form form) {
+        if (form == null) {
+            return;
+        }
+        AutoShrinkSupport.refreshTitleComponent(form);
+        form.refreshTheme();
+        form.setShouldCalcPreferredSize(true);
+        form.revalidate();
+        form.revalidateLater();
+        form.repaint();
+        AutoShrinkSupport.resetAndApplyLater(form);
     }
 
     private void refreshHomeAsync(boolean showToast) {
@@ -171,6 +282,8 @@ public class StreakApp extends Lifecycle {
             return;
         }
         refreshInProgress = true;
+        long refreshStarted = System.currentTimeMillis();
+        setRefreshBusy(true);
         if (homeForm == null) {
             showLoadingHome();
         }
@@ -178,19 +291,30 @@ public class StreakApp extends Lifecycle {
         startThread(() -> {
             try {
                 DayProgress progress = computeTodayProgress();
+                sleepUntilMinimumBusyTime(refreshStarted);
                 callSerially(() -> {
                     refreshInProgress = false;
+                    setRefreshBusy(false);
                     lastProgress = progress;
                     showHome(progress, showToast);
                 });
             } catch (Throwable t) {
                 Log.e(t);
+                sleepUntilMinimumBusyTime(refreshStarted);
                 callSerially(() -> {
                     refreshInProgress = false;
+                    setRefreshBusy(false);
                     ToastBar.showErrorMessage(text("toast.refresh.failed", "Refresh failed"));
                 });
             }
         }, "StreakApp Refresh").start();
+    }
+
+    private void sleepUntilMinimumBusyTime(long refreshStarted) {
+        long elapsed = System.currentTimeMillis() - refreshStarted;
+        if (elapsed < MIN_REFRESH_BUSY_MILLIS) {
+            Util.sleep(MIN_REFRESH_BUSY_MILLIS - (int) elapsed);
+        }
     }
 
     private void refreshHomeAfterResume() {
@@ -219,16 +343,24 @@ public class StreakApp extends Lifecycle {
     }
 
     private void showLoadingHome() {
+        showLoadingHome(false);
+    }
+
+    private void showLoadingHome(boolean back) {
         homeForm = new Form(text("app.title", "Streak"), new BorderLayout());
         homeForm.setScrollVisible(false);
         decorateToolbar(homeForm);
         Container content = createScreenContent();
         content.add(infoPanel(text("loading.title", "Loading"), text("loading.body", "Reading study app usage...")));
         homeForm.add(BorderLayout.CENTER, content);
-        homeForm.show();
+        showForm(homeForm, back);
     }
 
     private void showHome(DayProgress progress, boolean showToast) {
+        showHome(progress, showToast, false);
+    }
+
+    private void showHome(DayProgress progress, boolean showToast, boolean back) {
         homeForm = new Form(text("app.title", "Streak"), new BorderLayout());
         homeForm.setScrollVisible(false);
         decorateToolbar(homeForm);
@@ -251,7 +383,7 @@ public class StreakApp extends Lifecycle {
         }
 
         homeForm.add(BorderLayout.CENTER, content);
-        homeForm.show();
+        showForm(homeForm, back);
         if (showToast) {
             ToastBar.showInfoMessage(text("toast.refreshed", "Updated"));
         }
@@ -261,6 +393,8 @@ public class StreakApp extends Lifecycle {
         Container content = new Container(BoxLayout.y());
         content.setScrollableY(true);
         content.setScrollVisible(false);
+        content.setTensileDragEnabled(false);
+        content.setAlwaysTensile(false);
         content.setUIID("ScreenContent");
         return content;
     }
@@ -268,11 +402,30 @@ public class StreakApp extends Lifecycle {
     private void decorateToolbar(Form form) {
         Toolbar toolbar = form.getToolbar();
         toolbar.setTitleCentered(true);
-        toolbar.addMaterialCommandToRightBar("", FontImage.MATERIAL_REFRESH, e -> refreshHomeAsync(true));
-        toolbar.addMaterialCommandToSideMenu(text("menu.home", "Home"), FontImage.MATERIAL_HOME, e -> showCachedHome());
-        toolbar.addMaterialCommandToSideMenu(text("menu.settings", "Settings"), FontImage.MATERIAL_SETTINGS, e -> showSettings());
-        toolbar.addMaterialCommandToSideMenu(text("menu.usageAccess", "Usage access"), FontImage.MATERIAL_SECURITY, e -> explainAndOpenUsageSettings());
-        toolbar.addMaterialCommandToSideMenu(text("menu.info", "Information"), FontImage.MATERIAL_INFO_OUTLINE, e -> showInfo());
+        Command refresh = toolbar.addMaterialCommandToRightBar("", FontImage.MATERIAL_REFRESH, e -> refreshHomeAsync(true));
+        refreshCommandComponent = toolbar.findCommandComponent(refresh);
+        if (refreshCommandComponent != null) {
+            refreshCommandComponent.setUIID("ToolbarIconButton");
+        }
+        addSideMenuCommand(form, text("menu.home", "Home"), FontImage.MATERIAL_HOME, () -> showCachedHome());
+        addSideMenuCommand(form, text("menu.settings", "Settings"), FontImage.MATERIAL_SETTINGS, () -> showSettings());
+        addSideMenuCommand(form, text("menu.usageAccess", "Usage access"), FontImage.MATERIAL_SECURITY, () -> explainAndOpenUsageSettings());
+        addSideMenuCommand(form, text("menu.info", "Information"), FontImage.MATERIAL_INFO_OUTLINE, () -> showInfo());
+    }
+
+    private void addSideMenuCommand(Form form, String title, char icon, Runnable action) {
+        Toolbar toolbar = form.getToolbar();
+        Command command = toolbar.addMaterialCommandToSideMenu(title, icon, e -> action.run());
+        AutoShrinkSupport.registerSideMenuCommand(form, toolbar.findCommandComponent(command));
+    }
+
+    private void setRefreshBusy(boolean busy) {
+        if (refreshCommandComponent == null) {
+            return;
+        }
+        refreshCommandComponent.setUIID(busy ? "ToolbarIconButtonActive" : "ToolbarIconButton");
+        refreshCommandComponent.setEnabled(!busy);
+        refreshCommandComponent.repaint();
     }
 
     private void showCachedHome() {
@@ -295,7 +448,7 @@ public class StreakApp extends Lifecycle {
         website.addActionListener(e -> Display.getInstance().execute("https://www.informatica-libera.net/"));
         content.add(website);
         info.add(BorderLayout.CENTER, content);
-        info.show();
+        showForm(info, false);
     }
 
     private Container createHero(DayProgress progress) {
@@ -450,7 +603,7 @@ public class StreakApp extends Lifecycle {
 
         content.add(reset);
         settingsForm.add(BorderLayout.CENTER, content);
-        settingsForm.show();
+        showForm(settingsForm, false);
     }
 
     private Form createBackForm(String title) {
@@ -467,10 +620,26 @@ public class StreakApp extends Lifecycle {
             }
         };
         form.setScrollVisible(false);
+        form.setTensileDragEnabled(false);
+        form.setAlwaysTensile(false);
         form.setMinimizeOnBack(false);
         Command back = form.getToolbar().setBackCommand(text("menu.home", "Home"), e -> navigateHome());
         form.setBackCommand(back);
         return form;
+    }
+
+    private void showForm(Form form, boolean back) {
+        form.setTensileDragEnabled(false);
+        form.setAlwaysTensile(false);
+        AutoShrinkSupport.install(form);
+        if (back) {
+            form.showBack();
+        } else {
+            form.show();
+        }
+        AutoShrinkSupport.refreshTitleComponent(form);
+        form.revalidateLater();
+        AutoShrinkSupport.resetAndApplyLater(form);
     }
 
     private Container createThemePickerRow() {
@@ -518,7 +687,9 @@ public class StreakApp extends Lifecycle {
         row.setUIID("SettingsRow");
         row.add(label(text("settings.textSize", "Text size"), "SettingsLabel"));
 
-        Container controls = new Container(new BorderLayout());
+        Container controls = new Container(new FlowLayout(Component.CENTER));
+        controls.setUIID("FontScaleControls");
+        controls.getAllStyles().setBgTransparency(0);
         Label value = label(fontScaleText(), "SettingsValue");
         value.setAlignment(Component.CENTER);
         Button smaller = button("", "IconButton", FontImage.MATERIAL_TEXT_DECREASE);
@@ -526,21 +697,21 @@ public class StreakApp extends Lifecycle {
         Button larger = button("", "IconButton", FontImage.MATERIAL_TEXT_INCREASE);
 
         smaller.addActionListener(e -> {
-            setFontScale(Preferences.get(PREF_FONT_SCALE, 1f) / FONT_SCALE_STEP);
+            setFontScalePercent(currentFontScalePercent() - FONT_SCALE_STEP_PERCENT);
             updateFontScaleValue(value);
         });
         reset.addActionListener(e -> {
-            setFontScale(1f);
+            setFontScalePercent(100);
             updateFontScaleValue(value);
         });
         larger.addActionListener(e -> {
-            setFontScale(Preferences.get(PREF_FONT_SCALE, 1f) * FONT_SCALE_STEP);
+            setFontScalePercent(currentFontScalePercent() + FONT_SCALE_STEP_PERCENT);
             updateFontScaleValue(value);
         });
 
-        controls.add(BorderLayout.WEST, smaller);
-        controls.add(BorderLayout.CENTER, value);
-        controls.add(BorderLayout.EAST, larger);
+        controls.add(smaller);
+        controls.add(value);
+        controls.add(larger);
         row.add(controls);
         row.add(reset);
         return row;
@@ -550,7 +721,10 @@ public class StreakApp extends Lifecycle {
         value.setText(fontScaleText());
         Form current = getCurrentForm();
         if (current != null) {
+            current.setShouldCalcPreferredSize(true);
             current.revalidate();
+            current.revalidateLater();
+            AutoShrinkSupport.resetAndApplyLater(current);
         }
     }
 
@@ -629,16 +803,16 @@ public class StreakApp extends Lifecycle {
     }
 
     private String fontScaleText() {
-        return text("settings.textSizeValue", "{0}%", Math.round(Preferences.get(PREF_FONT_SCALE, 1f) * 100f));
+        return text("settings.textSizeValue", "{0}%", currentFontScalePercent());
     }
 
     private void navigateHome() {
-        if (homeForm != null) {
-            homeForm.showBack();
-            refreshHomeAsync(false);
+        if (lastProgress != null) {
+            showHome(lastProgress, false, true);
         } else {
-            refreshHomeAsync(false);
+            showLoadingHome(true);
         }
+        refreshHomeAsync(false);
     }
 
     private boolean saveMinutesIfValid(StudyApp app, TextField field, boolean showErrors) {

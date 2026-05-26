@@ -17,9 +17,22 @@ simple streak with limited streak freezes.
 - Opens the tracked Android apps directly from the dashboard.
 - Refreshes usage asynchronously and refreshes again when the app returns to the
   foreground.
-- Supports English and Italian localization.
+- Supports English and Italian localization. Additional localizations can be
+  added fairly easily.
 - Supports system, light, and dark appearance modes.
 - Supports in-app text size adjustment on top of the device text settings.
+
+## Usage Time Semantics
+
+StreakApp reports the time an Android app remains in the foreground, not the
+strict amount of active study time inside that app. Android's usage statistics
+include the time spent while the app is launching and visible. On an older
+phone, for example, a language app that takes twenty seconds to start can add
+those twenty seconds to the foreground total.
+
+For this reason, the daily minute target for each app is editable. You can tune
+the target to account for launch time and other foreground time that is not
+actual study.
 
 ## Screenshots
 
