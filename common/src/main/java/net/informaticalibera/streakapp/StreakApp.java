@@ -2,6 +2,7 @@ package net.informaticalibera.streakapp;
 
 import static com.codename1.ui.CN.*;
 
+import com.codename1.components.InfiniteProgress;
 import com.codename1.components.SpanLabel;
 import com.codename1.components.ToastBar;
 import com.codename1.io.Log;
@@ -22,7 +23,10 @@ import com.codename1.ui.util.Resources;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Hashtable;
+import java.util.List;
 import net.informaticalibera.streakapp.native_.AndroidUsageBridge;
+import net.informaticalibera.streakapp.GoalStore.Goal;
+import net.informaticalibera.streakapp.GoalStore.InstalledApp;
 
 /**
  * Codename One entry point for the study streak tracker.
@@ -32,7 +36,7 @@ import net.informaticalibera.streakapp.native_.AndroidUsageBridge;
  */
 public class StreakApp extends Lifecycle {
     private static final long MINUTE = 60_000L;
-    private static final int DEFAULT_MINUTES = 3;
+    private static final int DEFAULT_APP_MINUTES = 3;
     private static final int FREEZE_EVERY_COMPLETED_DAYS = 4;
     private static final int MAX_FREEZES = 4;
 
@@ -44,6 +48,7 @@ public class StreakApp extends Lifecycle {
     private static final String PREF_LANGUAGE_MODE = "language.mode";
     private static final String PREF_DAY_MODE = "day.mode";
     private static final String PREF_FONT_SCALE = "font.scale";
+    private static final String PREF_INITIAL_STREAK_IMPORTED = "streak.initialImported";
 
     private static final String THEME_SYSTEM = "system";
     private static final String THEME_LIGHT = "light";
@@ -57,21 +62,15 @@ public class StreakApp extends Lifecycle {
     private static final int FONT_SCALE_STEP_PERCENT = 10;
     private static final int MIN_FONT_SCALE_PERCENT = 70;
     private static final int MAX_FONT_SCALE_PERCENT = 180;
-    private static final int RESUME_REFRESH_DELAY_MILLIS = 1500;
+    private static final int RESUME_STATS_SETTLE_MILLIS = 2000;
     private static final int RETURN_REFRESH_INTERVAL_MILLIS = 2000;
     private static final int RETURN_REFRESH_ATTEMPTS = 3;
     private static final int MIN_REFRESH_BUSY_MILLIS = 500;
     private static final int ANDROID_BACK_KEY = -23452;
+    private static final String QUIZLET_PACKAGE = "com.quizlet.quizletandroid";
+    private static final String QUIZLET_SETS_URL = "https://quizlet.com/user/NIPPONITA-jp/sets";
 
-    private static final StudyApp[] DEFAULT_APPS = {
-        new StudyApp("AnkiDroid", "com.ichi2.anki", DEFAULT_MINUTES),
-        new StudyApp("Duolingo", "com.duolingo", DEFAULT_MINUTES),
-        new StudyApp("Drops", "com.languagedrops.drops.international", DEFAULT_MINUTES),
-        new StudyApp("Rosetta Stone", "air.com.rosettastone.mobile.CoursePlayer", DEFAULT_MINUTES),
-        new StudyApp("Talkpal", "ai.talkpal", DEFAULT_MINUTES),
-        new StudyApp("Quizlet", "com.quizlet.quizletandroid", DEFAULT_MINUTES)
-    };
-
+    private final GoalStore goalStore = new GoalStore();
     private AndroidUsageBridge usageBridge;
     private Form homeForm;
     private Form settingsForm;
@@ -96,6 +95,8 @@ public class StreakApp extends Lifecycle {
         Form current = CN.getCurrentForm();
         if (booted && (current == homeForm || homeForm == null)) {
             refreshHomeAfterResume();
+        } else if (booted && current == settingsForm) {
+            refreshSettingsAfterResume();
         }
     }
 
@@ -182,6 +183,10 @@ public class StreakApp extends Lifecycle {
     }
 
     private void refreshHomeAsync(boolean showToast) {
+        refreshHomeAsync(showToast, 0);
+    }
+
+    private void refreshHomeAsync(boolean showToast, int settleDelayMillis) {
         if (refreshInProgress) {
             return;
         }
@@ -191,27 +196,53 @@ public class StreakApp extends Lifecycle {
         if (homeForm == null) {
             showLoadingHome();
         }
+        Dialog refreshDialog = createRefreshDialog();
+        refreshDialog.showPacked(BorderLayout.CENTER, false);
 
         startThread(() -> {
             try {
+                if (settleDelayMillis > 0) {
+                    Util.sleep(settleDelayMillis);
+                }
                 DayProgress progress = computeTodayProgress();
                 sleepUntilMinimumBusyTime(refreshStarted);
                 callSerially(() -> {
-                    refreshInProgress = false;
-                    setRefreshBusy(false);
-                    lastProgress = progress;
-                    showHome(progress, showToast);
+                    completeRefresh(refreshDialog, () -> {
+                        lastProgress = progress;
+                        showHome(progress, showToast);
+                    });
                 });
             } catch (Throwable t) {
                 Log.e(t);
                 sleepUntilMinimumBusyTime(refreshStarted);
                 callSerially(() -> {
-                    refreshInProgress = false;
-                    setRefreshBusy(false);
-                    ToastBar.showErrorMessage(text("toast.refresh.failed", "Refresh failed"));
+                    completeRefresh(refreshDialog, () ->
+                            ToastBar.showErrorMessage(text("toast.refresh.failed", "Refresh failed")));
                 });
             }
         }, "StreakApp Refresh").start();
+    }
+
+    private Dialog createRefreshDialog() {
+        Dialog dialog = new Dialog(text("refresh.dialog.title", "Updating"));
+        dialog.setDisposeWhenPointerOutOfBounds(false);
+        dialog.setLayout(new BorderLayout());
+
+        Container body = new Container(BoxLayout.y());
+        body.add(FlowLayout.encloseCenter(new InfiniteProgress()));
+        body.add(span(text("refresh.dialog.body", "Updating statistics..."), "DialogBody"));
+        dialog.add(BorderLayout.CENTER, body);
+        return dialog;
+    }
+
+    private void completeRefresh(Dialog refreshDialog, Runnable afterDialogClosed) {
+        refreshInProgress = false;
+        if (!Display.isInitialized()) {
+            return;
+        }
+        setRefreshBusy(false);
+        refreshDialog.dispose();
+        callSerially(afterDialogClosed);
     }
 
     private void sleepUntilMinimumBusyTime(long refreshStarted) {
@@ -222,25 +253,21 @@ public class StreakApp extends Lifecycle {
     }
 
     private void refreshHomeAfterResume() {
-        refreshHomeAsync(false);
-        startThread(() -> {
-            Util.sleep(RESUME_REFRESH_DELAY_MILLIS);
-            callSerially(() -> {
-                if (CN.getCurrentForm() == homeForm) {
-                    refreshHomeAsync(false);
-                }
-            });
-        }, "StreakApp Resume Refresh").start();
+        refreshHomeAsync(false, RESUME_STATS_SETTLE_MILLIS);
     }
 
     private DayProgress computeTodayProgress() {
         long todayStart = startOfToday();
+        long lastDayStart = Preferences.get(PREF_LAST_DAY_START, 0L);
+        goalStore.ensureHistory(lastDayStart > 0L && lastDayStart <= todayStart
+                ? lastDayStart : todayStart);
+        synchronizeInstalledGoals(todayStart);
         DayProgress progress = loadProgress(todayStart, System.currentTimeMillis());
-        if (progress.usageAccessGranted) {
+        if (canEvaluate(progress)) {
             reconcileStreak(progress);
             return loadProgress(todayStart, System.currentTimeMillis());
         }
-        if (Preferences.get(PREF_LAST_DAY_START, 0L) == 0L) {
+        if (lastDayStart == 0L) {
             Preferences.set(PREF_LAST_DAY_START, todayStart);
         }
         return progress;
@@ -271,19 +298,25 @@ public class StreakApp extends Lifecycle {
 
         Container content = createScreenContent();
         content.add(createHero(progress));
-        if (!progress.usageAccessGranted) {
+        if (progress.enabledAppCount > 0 && !progress.usageAccessGranted) {
             content.add(createUsageAccessPanel());
         }
-        content.add(sectionTitle(text("section.studyApps", "Study apps")));
-        for (int i = 0; i < progress.apps.length; i++) {
-            if (progress.apps[i].enabled) {
-                content.add(createAppCard(progress.apps[i]));
+        content.add(sectionTitle(text("section.dailyGoals", "Daily goals")));
+        if (progress.enabledAppCount == 0) {
+            content.add(infoPanel(
+                    text("empty.countedApps.title", "No counted apps"),
+                    text("empty.countedApps.body",
+                            "At least one active app goal is required to advance the streak.")));
+        }
+        for (int i = 0; i < progress.goals.length; i++) {
+            if (progress.goals[i].enabled) {
+                content.add(createGoalCard(progress.goals[i]));
             }
         }
         if (progress.enabledCount == 0) {
             content.add(infoPanel(
-                    text("empty.apps.title", "No active apps"),
-                    text("empty.apps.body", "Open Settings from the menu and enable at least one app.")));
+                    text("empty.goals.title", "No active goals"),
+                    text("empty.goals.body", "Open Settings from the menu and enable at least one goal.")));
         }
 
         homeForm.add(BorderLayout.CENTER, content);
@@ -362,7 +395,7 @@ public class StreakApp extends Lifecycle {
         hero.add(label(String.valueOf(Preferences.get(PREF_STREAK, 0)), "HeroValue"));
         hero.add(span(text("hero.freezeStatus", "Freezes available: {0}/{1}",
                 Preferences.get(PREF_FREEZES, 0), MAX_FREEZES), "HeroMeta"));
-        hero.add(span(text("hero.appsStatus", "Apps completed today: {0}/{1}",
+        hero.add(span(text("hero.goalsStatus", "Goals completed today: {0}/{1}",
                 progress.completeCount, progress.enabledCount), "HeroMeta"));
         hero.add(span(nextFreezeText(), "HeroMeta"));
         return hero;
@@ -379,27 +412,44 @@ public class StreakApp extends Lifecycle {
         return panel;
     }
 
-    private Container createAppCard(AppProgress progress) {
+    private Container createGoalCard(GoalProgress progress) {
         Container card = new Container(new BorderLayout());
         card.setUIID("StudyCard");
 
         Container details = new Container(BoxLayout.y());
-        details.add(label(progress.app.name, "AppName"));
-        details.add(span(appStatusText(progress), "AppMeta"));
-        details.add(label(text("appCard.durationTarget", "{0} / {1} min",
-                formatDuration(progress.foregroundMillis), progress.targetMinutes),
-                progress.complete ? "GoodText" : "MutedText"));
+        details.add(label(progress.goal.name, "AppName"));
+        details.add(span(goalStatusText(progress), "AppMeta"));
+        if (progress.goal.isApp()) {
+            details.add(label(text("appCard.durationTarget", "{0} / {1} min",
+                    formatDuration(progress.foregroundMillis), progress.targetMinutes),
+                    progress.complete ? "GoodText" : "MutedText"));
+        }
 
-        Button open = button(text("button.open", "Open"), "SmallButton", FontImage.MATERIAL_OPEN_IN_NEW);
-        open.setEnabled(progress.installed);
-        open.addActionListener(e -> launchApp(progress));
+        Button action;
+        if (progress.goal.isManual()) {
+            action = button(progress.complete
+                    ? text("button.done", "Done")
+                    : text("button.markDone", "Mark done"),
+                    "SmallButton", FontImage.MATERIAL_DONE);
+            action.setEnabled(!progress.complete);
+            action.addActionListener(e -> markManualGoalDone(progress.goal));
+        } else {
+            action = button(text("button.open", "Open"), "SmallButton", FontImage.MATERIAL_OPEN_IN_NEW);
+            action.setEnabled(progress.installed);
+            action.addActionListener(e -> launchApp(progress));
+        }
 
         card.add(BorderLayout.CENTER, details);
-        card.add(BorderLayout.EAST, FlowLayout.encloseCenter(open));
+        card.add(BorderLayout.EAST, FlowLayout.encloseCenter(action));
         return card;
     }
 
-    private String appStatusText(AppProgress progress) {
+    private String goalStatusText(GoalProgress progress) {
+        if (progress.goal.isManual()) {
+            return progress.complete
+                    ? text("manualStatus.complete", "Completed today")
+                    : text("manualStatus.pending", "To do today");
+        }
         if (!progress.installed) {
             return text("appStatus.notInstalled", "Not installed or not visible to Android");
         }
@@ -413,10 +463,10 @@ public class StreakApp extends Lifecycle {
         return text("appStatus.missing", "About {0} remaining", formatDuration(Math.max(0, missingMillis)));
     }
 
-    private void launchApp(AppProgress progress) {
+    private void launchApp(GoalProgress progress) {
         if (!progress.installed) {
             Dialog.show(text("dialog.appNotFound.title", "App not found"),
-                    text("dialog.appNotFound.body", "I cannot open {0}.", progress.app.name),
+                    text("dialog.appNotFound.body", "I cannot open {0}.", progress.goal.name),
                     text("button.ok", "OK"), null);
             return;
         }
@@ -427,13 +477,24 @@ public class StreakApp extends Lifecycle {
             explainAndOpenUsageSettings();
             return;
         }
-        if (!isNativeReady() || !usageBridge.launchPackage(progress.app.packageName)) {
+        String launchUrl = launchUrlForGoal(progress.goal);
+        if (launchUrl.length() > 0) {
+            Display.getInstance().execute(launchUrl);
+            scheduleReturnRefreshes();
+            return;
+        }
+        if (!isNativeReady() || !usageBridge.launchPackage(progress.goal.packageName)) {
             Dialog.show(text("dialog.launchFailed.title", "Launch failed"),
-                    text("dialog.launchFailed.body", "Android did not open {0}.", progress.app.name),
+                    text("dialog.launchFailed.body", "Android did not open {0}.", progress.goal.name),
                     text("button.ok", "OK"), null);
             return;
         }
         scheduleReturnRefreshes();
+    }
+
+    private void markManualGoalDone(Goal goal) {
+        goalStore.setManualDone(goal, dayId(startOfToday()), true);
+        refreshHomeAsync(false);
     }
 
     private void scheduleReturnRefreshes() {
@@ -454,8 +515,9 @@ public class StreakApp extends Lifecycle {
         });
     }
 
-    private void showSettings() {
+    void showSettings() {
         settingsForm = createBackForm(text("settings.title", "Settings"));
+        settingsForm.setName("settingsForm");
         Container content = createScreenContent();
         content.add(sectionTitle(text("settings.appearance", "Appearance")));
         content.add(createThemePickerRow());
@@ -465,37 +527,23 @@ public class StreakApp extends Lifecycle {
         content.add(span(text("settings.dayMode.body", "Calendar days end at midnight. Study days end at 4:00 AM."), "BodyText"));
         content.add(createDayModePickerRow());
         content.add(sectionTitle(text("settings.dailyTargets", "Daily targets")));
-        content.add(span(text("settings.dailyTargets.body", "Choose the apps that count toward the streak and set the minimum minutes for each app."), "BodyText"));
+        content.add(span(text("settings.dailyTargets.body",
+                "Choose the goals that count toward the streak. App goals also have a minimum duration."),
+                "BodyText"));
 
-        for (int i = 0; i < DEFAULT_APPS.length; i++) {
-            StudyApp app = DEFAULT_APPS[i];
-            Container row = new Container(new BorderLayout());
-            row.setUIID("SettingsRow");
-
-            CheckBox enabled = new CheckBox(app.name);
-            enabled.setUIID("SettingsCheckBox");
-            enabled.getAllStyles().setBgTransparency(0);
-            enabled.setSelected(isAppEnabled(app));
-            enabled.addActionListener(e -> Preferences.set(enabledKey(app), enabled.isSelected()));
-
-            TextField minutes = new TextField(String.valueOf(targetMinutes(app)), text("settings.minutesHint", "min"), 3, TextArea.NUMERIC);
-            minutes.setUIID("SettingsField");
-            minutes.addDataChangedListener((type, index) -> saveMinutesIfValid(app, minutes, false));
-            minutes.setDoneListener(e -> saveMinutesIfValid(app, minutes, true));
-            minutes.addFocusListener(new FocusListener() {
-                @Override
-                public void focusGained(com.codename1.ui.Component cmp) {
-                }
-
-                @Override
-                public void focusLost(com.codename1.ui.Component cmp) {
-                    saveMinutesIfValid(app, minutes, true);
-                }
-            });
-            row.add(BorderLayout.CENTER, enabled);
-            row.add(BorderLayout.EAST, minutes);
-            content.add(row);
+        List<Goal> goals = goalStore.allGoals();
+        for (int i = 0; i < goals.size(); i++) {
+            content.add(createGoalSettingsRow(goals.get(i)));
         }
+
+        Button addApp = button(text("button.addApp", "Add app"), "PrimaryButton", FontImage.MATERIAL_ADD);
+        addApp.setName("addAppButton");
+        addApp.addActionListener(e -> showInstalledAppPicker());
+        Button addManual = button(text("button.addActivity", "Add activity"), "SecondaryButton", FontImage.MATERIAL_ADD_TASK);
+        addManual.setName("addManualButton");
+        addManual.addActionListener(e -> addManualGoal());
+        content.add(addApp);
+        content.add(addManual);
 
         content.add(infoPanel(text("settings.freezes.title", "Streak freezes"),
                 text("settings.freezes.body", "Every {0} completed days earns one freeze. The maximum available is {1}.",
@@ -505,18 +553,269 @@ public class StreakApp extends Lifecycle {
         reset.addActionListener(e -> resetStreakData());
 
         content.add(reset);
+        if (!Preferences.get(PREF_INITIAL_STREAK_IMPORTED, false)) {
+            Button importStreak = button(text("button.importStreak", "Set initial streak"),
+                    "SecondaryButton", FontImage.MATERIAL_EDIT);
+            importStreak.setName("importStreakButton");
+            importStreak.addActionListener(e -> importInitialStreak());
+            content.add(importStreak);
+        }
         settingsForm.add(BorderLayout.CENTER, content);
         showForm(settingsForm, false);
     }
 
+    private Container createGoalSettingsRow(Goal goal) {
+        Container row = new Container(new BorderLayout());
+        row.setUIID("SettingsRow");
+        row.setName("goalRow." + goal.id);
+
+        CheckBox enabled = new CheckBox(goal.name);
+        enabled.setName("goalEnabled." + goal.id);
+        enabled.setUIID("SettingsCheckBox");
+        enabled.getAllStyles().setBgTransparency(0);
+        enabled.setSelected(goalStore.isEnabled(goal));
+        enabled.addActionListener(e -> {
+            goalStore.setEnabled(goal, enabled.isSelected());
+            recordTodayConfiguration();
+            lastProgress = null;
+        });
+
+        Container controls = new Container(BoxLayout.x());
+        controls.getAllStyles().setBgTransparency(0);
+        if (goal.isApp()) {
+            TextField minutes = new TextField(String.valueOf(goalStore.targetMinutes(goal)),
+                    text("settings.minutesHint", "min"), 3, TextArea.NUMERIC);
+            minutes.setUIID("SettingsField");
+            minutes.addDataChangedListener((type, index) -> saveMinutesIfValid(goal, minutes, false));
+            minutes.setDoneListener(e -> saveMinutesIfValid(goal, minutes, true));
+            minutes.addFocusListener(new FocusListener() {
+                @Override
+                public void focusGained(com.codename1.ui.Component cmp) {
+                }
+
+                @Override
+                public void focusLost(com.codename1.ui.Component cmp) {
+                    saveMinutesIfValid(goal, minutes, true);
+                }
+            });
+            controls.add(minutes);
+        }
+        if (goal.removable) {
+            Button remove = button("", "DeleteButton", FontImage.MATERIAL_DELETE_OUTLINE);
+            remove.addActionListener(e -> removeGoal(goal));
+            controls.add(remove);
+        }
+        row.add(BorderLayout.CENTER, enabled);
+        if (controls.getComponentCount() > 0) {
+            row.add(BorderLayout.EAST, controls);
+        }
+        return row;
+    }
+
+    private void showInstalledAppPicker() {
+        if (!isNativeReady()) {
+            Dialog.show(text("dialog.notAvailable.title", "Not available"),
+                    text("dialog.notAvailable.body", "This feature is available on Android devices."),
+                    text("button.ok", "OK"), null);
+            return;
+        }
+        Form pickerForm = createBackForm(text("appsPicker.title", "Add an app"), () -> showSettings(),
+                text("button.back", "Back"));
+        Container content = createScreenContent();
+        TextField search = new TextField("", text("appsPicker.search", "Search apps"), 40, TextArea.ANY);
+        search.setUIID("SettingsField");
+        Container results = new Container(BoxLayout.y());
+        results.getAllStyles().setBgTransparency(0);
+        results.add(infoPanel(text("loading.title", "Loading"),
+                text("appsPicker.loading", "Reading the apps installed on this phone...")));
+        content.add(search);
+        content.add(results);
+        pickerForm.add(BorderLayout.CENTER, content);
+        showForm(pickerForm, false);
+
+        startThread(() -> {
+            List<InstalledApp> apps = loadInstalledApps();
+            callSerially(() -> {
+                populateInstalledApps(results, apps, "");
+                search.addDataChangedListener((type, index) ->
+                        populateInstalledApps(results, apps, search.getText()));
+            });
+        }, "Installed Apps").start();
+    }
+
+    private List<InstalledApp> loadInstalledApps() {
+        try {
+            return goalStore.parseInstalledApps(usageBridge.listLaunchableApps());
+        } catch (Throwable t) {
+            Log.e(t);
+            return goalStore.parseInstalledApps("");
+        }
+    }
+
+    private boolean synchronizeInstalledGoals(long effectiveDayStart) {
+        if (!isNativeReady()) {
+            return false;
+        }
+        List<InstalledApp> installedApps = loadInstalledApps();
+        if (installedApps.isEmpty()) {
+            return false;
+        }
+        boolean changed = goalStore.reconcileInstalledApps(installedApps);
+        if (changed) {
+            goalStore.recordConfiguration(effectiveDayStart);
+            lastProgress = null;
+        }
+        return changed;
+    }
+
+    private void refreshSettingsAfterResume() {
+        startThread(() -> {
+            boolean changed = synchronizeInstalledGoals(startOfToday());
+            if (changed) {
+                callSerially(() -> showSettings());
+            }
+        }, "Installed Apps Refresh").start();
+    }
+
+    private void populateInstalledApps(Container results, List<InstalledApp> apps, String query) {
+        String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
+        results.removeAll();
+        int visible = 0;
+        for (int i = 0; i < apps.size(); i++) {
+            InstalledApp app = apps.get(i);
+            if (goalStore.containsApp(app.packageName)) {
+                continue;
+            }
+            String searchable = (app.name + " " + app.packageName).toLowerCase();
+            if (normalizedQuery.length() > 0 && searchable.indexOf(normalizedQuery) < 0) {
+                continue;
+            }
+            Container row = new Container(new BorderLayout());
+            row.setUIID("SettingsRow");
+            Container details = new Container(BoxLayout.y());
+            details.add(label(app.name, "SettingsLabel"));
+            details.add(label(app.packageName, "AppMeta"));
+            Button add = button(text("button.add", "Add"), "SmallButton", FontImage.MATERIAL_ADD);
+            add.addActionListener(e -> {
+                Goal added = goalStore.addApp(app.name, app.packageName, DEFAULT_APP_MINUTES);
+                if (added != null) {
+                    recordTodayConfiguration();
+                    lastProgress = null;
+                    ToastBar.showInfoMessage(text("toast.goalAdded", "Goal added"));
+                    showSettings();
+                }
+            });
+            row.add(BorderLayout.CENTER, details);
+            row.add(BorderLayout.EAST, FlowLayout.encloseCenter(add));
+            results.add(row);
+            visible++;
+        }
+        if (visible == 0) {
+            results.add(infoPanel(text("appsPicker.empty.title", "No apps found"),
+                    text("appsPicker.empty.body", "Try a different search or add a manual activity.")));
+        }
+        results.revalidate();
+        results.repaint();
+    }
+
+    private void addManualGoal() {
+        TextField name = new TextField("", text("manualGoal.nameHint", "Activity name"), 80, TextArea.ANY);
+        name.setUIID("SettingsField");
+        Container body = new Container(BoxLayout.y());
+        body.add(span(text("manualGoal.body", "Add an activity that you will mark as done manually."),
+                "DialogBody"));
+        body.add(name);
+        Command cancel = new Command(text("button.cancel", "Cancel"));
+        Command add = new Command(text("button.add", "Add"));
+        if (Dialog.show(text("manualGoal.title", "New activity"), body, cancel, add) != add) {
+            return;
+        }
+        String value = name.getText() == null ? "" : name.getText().trim();
+        if (value.length() == 0 || value.length() > 80) {
+            Dialog.show(text("dialog.invalidValue.title", "Invalid value"),
+                    text("manualGoal.invalid", "Enter a name between 1 and 80 characters."),
+                    text("button.ok", "OK"), null);
+            return;
+        }
+        if (goalStore.containsName(value)) {
+            Dialog.show(text("dialog.invalidValue.title", "Invalid value"),
+                    text("manualGoal.duplicate", "A goal with this name already exists."),
+                    text("button.ok", "OK"), null);
+            return;
+        }
+        goalStore.addManual(value);
+        recordTodayConfiguration();
+        lastProgress = null;
+        ToastBar.showInfoMessage(text("toast.goalAdded", "Goal added"));
+        showSettings();
+    }
+
+    private void removeGoal(Goal goal) {
+        if (!Dialog.show(text("removeGoal.title", "Remove goal"),
+                text("removeGoal.body", "Remove {0} from the list?", goal.name),
+                text("button.remove", "Remove"), text("button.cancel", "Cancel"))) {
+            return;
+        }
+        goalStore.remove(goal);
+        recordTodayConfiguration();
+        lastProgress = null;
+        ToastBar.showInfoMessage(text("toast.goalRemoved", "Goal removed"));
+        showSettings();
+    }
+
+    private void importInitialStreak() {
+        TextField value = new TextField("", text("importStreak.hint", "Current streak"), 6, TextArea.NUMERIC);
+        value.setUIID("SettingsField");
+        Container body = new Container(BoxLayout.y());
+        body.add(span(text("importStreak.body",
+                "Enter the streak accumulated before this installation. This can only be done once."),
+                "DialogBody"));
+        body.add(value);
+        Command cancel = new Command(text("button.cancel", "Cancel"));
+        Command confirm = new Command(text("button.confirm", "Confirm"));
+        if (Dialog.show(text("importStreak.title", "Set initial streak"), body, cancel, confirm) != confirm) {
+            return;
+        }
+        int streak;
+        try {
+            streak = Integer.parseInt(value.getText() == null ? "" : value.getText().trim());
+        } catch (NumberFormatException ex) {
+            streak = -1;
+        }
+        if (streak < 0 || streak > 999999) {
+            Dialog.show(text("dialog.invalidValue.title", "Invalid value"),
+                    text("importStreak.invalid", "Enter a number between 0 and 999999."),
+                    text("button.ok", "OK"), null);
+            return;
+        }
+        if (!Dialog.show(text("importStreak.title", "Set initial streak"),
+                text("importStreak.confirm", "Set the current streak to {0}? This action cannot be repeated.", streak),
+                text("button.confirm", "Confirm"), text("button.cancel", "Cancel"))) {
+            return;
+        }
+        Preferences.set(PREF_STREAK, streak);
+        Preferences.set(PREF_FREEZE_PROGRESS, streak % FREEZE_EVERY_COMPLETED_DAYS);
+        Preferences.set(PREF_INITIAL_STREAK_IMPORTED, true);
+        ToastBar.showInfoMessage(text("toast.streakImported", "Initial streak saved"));
+        navigateHome();
+    }
+
+    private void recordTodayConfiguration() {
+        goalStore.recordConfiguration(startOfToday());
+    }
+
     private Form createBackForm(String title) {
+        return createBackForm(title, () -> navigateHome(), text("menu.home", "Home"));
+    }
+
+    private Form createBackForm(String title, Runnable backAction, String backLabel) {
         Form form = new Form(title, new BorderLayout()) {
             @Override
             public void keyReleased(int keyCode) {
                 // The Android port translates the system Back button before
                 // CN1 dispatches it to the current form.
                 if (keyCode == ANDROID_BACK_KEY) {
-                    navigateHome();
+                    backAction.run();
                     return;
                 }
                 super.keyReleased(keyCode);
@@ -526,7 +825,7 @@ public class StreakApp extends Lifecycle {
         form.setTensileDragEnabled(false);
         form.setAlwaysTensile(false);
         form.setMinimizeOnBack(false);
-        Command back = form.getToolbar().setBackCommand(text("menu.home", "Home"), e -> navigateHome());
+        Command back = form.getToolbar().setBackCommand(backLabel, e -> backAction.run());
         form.setBackCommand(back);
         return form;
     }
@@ -552,7 +851,7 @@ public class StreakApp extends Lifecycle {
 
         Picker picker = new Picker();
         picker.setUIID("SettingsPicker");
-        picker.setTraversable(false);
+        picker.setTraversable(true);
         picker.setUseLightweightPopup(true);
         picker.setType(Display.PICKER_TYPE_STRINGS);
         picker.setStrings(themeLabel(THEME_SYSTEM), themeLabel(THEME_LIGHT), themeLabel(THEME_DARK));
@@ -573,7 +872,7 @@ public class StreakApp extends Lifecycle {
 
         Picker picker = new Picker();
         picker.setUIID("SettingsPicker");
-        picker.setTraversable(false);
+        picker.setTraversable(true);
         picker.setUseLightweightPopup(true);
         picker.setType(Display.PICKER_TYPE_STRINGS);
         picker.setStrings(languageLabel(LANGUAGE_SYSTEM), languageLabel(LANGUAGE_ENGLISH), languageLabel(LANGUAGE_ITALIAN));
@@ -632,7 +931,7 @@ public class StreakApp extends Lifecycle {
 
         Picker picker = new Picker();
         picker.setUIID("SettingsPicker");
-        picker.setTraversable(false);
+        picker.setTraversable(true);
         picker.setUseLightweightPopup(true);
         picker.setType(Display.PICKER_TYPE_STRINGS);
         picker.setStrings(dayModeLabel(DAY_CALENDAR), dayModeLabel(DAY_STUDY));
@@ -640,6 +939,7 @@ public class StreakApp extends Lifecycle {
         picker.addActionListener(e -> {
             Preferences.set(PREF_DAY_MODE, dayModeFromLabel(picker.getSelectedString()));
             Preferences.set(PREF_LAST_DAY_START, startOfToday());
+            recordTodayConfiguration();
             lastProgress = null;
         });
         row.add(BorderLayout.EAST, picker);
@@ -717,35 +1017,37 @@ public class StreakApp extends Lifecycle {
         refreshHomeAsync(false);
     }
 
-    private boolean saveMinutesIfValid(StudyApp app, TextField field, boolean showErrors) {
+    private boolean saveMinutesIfValid(Goal goal, TextField field, boolean showErrors) {
         String raw = field.getText();
         int minutes;
         try {
             minutes = Integer.parseInt(raw == null ? "" : raw.trim());
         } catch (NumberFormatException ex) {
             if (showErrors) {
-                restoreMinutesField(app, field, "dialog.invalidValue.body");
+                restoreMinutesField(goal, field, "dialog.invalidValue.body");
             }
             return false;
         }
         if (minutes < 1 || minutes > 240) {
             if (showErrors) {
-                restoreMinutesField(app, field, "dialog.invalidRange.body");
+                restoreMinutesField(goal, field, "dialog.invalidRange.body");
             }
             return false;
         }
-        Preferences.set(minutesKey(app), minutes);
+        goalStore.setTargetMinutes(goal, minutes);
+        recordTodayConfiguration();
+        lastProgress = null;
         return true;
     }
 
-    private void restoreMinutesField(StudyApp app, TextField field, String messageKey) {
+    private void restoreMinutesField(Goal goal, TextField field, String messageKey) {
         String fallback = "dialog.invalidRange.body".equals(messageKey)
                 ? "Minutes for {0} must be between 1 and 240."
                 : "Check the minutes for {0}.";
         Dialog.show(text("dialog.invalidValue.title", "Invalid value"),
-                text(messageKey, fallback, app.name),
+                text(messageKey, fallback, goal.name),
                 text("button.ok", "OK"), null);
-        field.setText(String.valueOf(targetMinutes(app)));
+        field.setText(String.valueOf(goalStore.targetMinutes(goal)));
     }
 
     private void resetStreakData() {
@@ -776,8 +1078,13 @@ public class StreakApp extends Lifecycle {
         Preferences.set(PREF_LAST_DAY_START, startOfToday());
         for (int i = 0; i < 370; i++) {
             long day = addDays(startOfToday(), -i);
+            goalStore.clearManualCompletions(dayId(day), goalStore.goalsForDay(day));
             Preferences.delete(dayCompleteKey(day));
+            clearBeforeDayState(day);
         }
+        goalStore.clearConfigurationHistory();
+        recordTodayConfiguration();
+        lastProgress = null;
         ToastBar.showInfoMessage(text("toast.streakReset", "Streak reset"));
         navigateHome();
     }
@@ -798,21 +1105,30 @@ public class StreakApp extends Lifecycle {
 
     private DayProgress loadProgress(long fromMillis, long toMillis) {
         DayProgress day = new DayProgress();
-        day.apps = new AppProgress[DEFAULT_APPS.length];
+        List<Goal> goals = goalStore.goalsForDay(fromMillis);
+        day.goals = new GoalProgress[goals.size()];
         day.usageAccessGranted = isNativeReady() && usageBridge.isUsageAccessGranted();
-        for (int i = 0; i < DEFAULT_APPS.length; i++) {
-            StudyApp app = DEFAULT_APPS[i];
-            AppProgress p = new AppProgress();
-            p.app = app;
-            p.enabled = isAppEnabled(app);
-            p.targetMinutes = targetMinutes(app);
+        boolean historical = fromMillis < startOfToday();
+        String progressDayId = dayId(fromMillis);
+        for (int i = 0; i < goals.size(); i++) {
+            Goal goal = goals.get(i);
+            GoalProgress p = new GoalProgress();
+            p.goal = goal;
+            p.enabled = true;
+            p.targetMinutes = goal.defaultMinutes;
             p.usageAccessGranted = day.usageAccessGranted;
-            p.installed = !isNativeReady() || safeIsLaunchable(app.packageName);
-            p.foregroundMillis = p.enabled && p.installed && day.usageAccessGranted
-                    ? safeForegroundMillis(app.packageName, fromMillis, toMillis)
-                    : 0L;
-            p.complete = p.enabled && p.installed && p.foregroundMillis >= p.targetMinutes * MINUTE;
-            day.apps[i] = p;
+            if (goal.isApp()) {
+                day.enabledAppCount++;
+                p.installed = historical || !isNativeReady() || safeIsLaunchable(goal.packageName);
+                p.foregroundMillis = p.installed && day.usageAccessGranted
+                        ? safeForegroundMillis(goal.packageName, fromMillis, toMillis)
+                        : 0L;
+                p.complete = p.installed && p.foregroundMillis >= p.targetMinutes * MINUTE;
+            } else {
+                p.installed = true;
+                p.complete = goalStore.isManualDone(goal, progressDayId);
+            }
+            day.goals[i] = p;
             if (p.enabled) {
                 day.enabledCount++;
                 if (p.complete) {
@@ -820,8 +1136,13 @@ public class StreakApp extends Lifecycle {
                 }
             }
         }
-        day.complete = day.enabledCount > 0 && day.completeCount == day.enabledCount;
+        day.complete = qualifiesAsCompletedDay(
+                day.enabledAppCount, day.enabledCount, day.completeCount);
         return day;
+    }
+
+    private boolean canEvaluate(DayProgress progress) {
+        return progress.enabledAppCount > 0 && progress.usageAccessGranted;
     }
 
     /**
@@ -837,23 +1158,35 @@ public class StreakApp extends Lifecycle {
         int guard = 0;
         long cursor = lastDay;
         while (cursor < todayStart && guard < 370) {
-            finalizePastDay(cursor);
+            DayProgress past = loadProgress(cursor, addDays(cursor, 1));
+            if (past.enabledAppCount == 0) {
+                cursor = addDays(cursor, 1);
+                guard++;
+                continue;
+            }
+            if (!canEvaluate(past)) {
+                return;
+            }
+            finalizePastDay(cursor, past);
             cursor = addDays(cursor, 1);
             guard++;
         }
         Preferences.set(PREF_LAST_DAY_START, todayStart);
         if (today.complete) {
             markDayComplete(todayStart, true);
+        } else {
+            unmarkCurrentDayComplete(todayStart);
         }
     }
 
-    private void finalizePastDay(long dayStart) {
+    private void finalizePastDay(long dayStart, DayProgress past) {
         if (Preferences.get(dayCompleteKey(dayStart), false)) {
+            clearBeforeDayState(dayStart);
             return;
         }
-        DayProgress past = loadProgress(dayStart, addDays(dayStart, 1));
         if (past.complete) {
             markDayComplete(dayStart, false);
+            clearBeforeDayState(dayStart);
             return;
         }
         int freezes = Preferences.get(PREF_FREEZES, 0);
@@ -870,6 +1203,12 @@ public class StreakApp extends Lifecycle {
         if (Preferences.get(completeKey, false)) {
             return;
         }
+        if (allowToast) {
+            Preferences.set(beforeDayExistsKey(dayStart), true);
+            Preferences.set(beforeDayStreakKey(dayStart), Preferences.get(PREF_STREAK, 0));
+            Preferences.set(beforeDayFreezesKey(dayStart), Preferences.get(PREF_FREEZES, 0));
+            Preferences.set(beforeDayProgressKey(dayStart), Preferences.get(PREF_FREEZE_PROGRESS, 0));
+        }
         Preferences.set(completeKey, true);
         Preferences.set(PREF_STREAK, Preferences.get(PREF_STREAK, 0) + 1);
         int progress = Preferences.get(PREF_FREEZE_PROGRESS, 0) + 1;
@@ -882,6 +1221,25 @@ public class StreakApp extends Lifecycle {
         if (allowToast) {
             ToastBar.showInfoMessage(text("toast.dayComplete", "Day completed"));
         }
+    }
+
+    private void unmarkCurrentDayComplete(long dayStart) {
+        if (!Preferences.get(dayCompleteKey(dayStart), false)
+                || !Preferences.get(beforeDayExistsKey(dayStart), false)) {
+            return;
+        }
+        Preferences.set(PREF_STREAK, Preferences.get(beforeDayStreakKey(dayStart), 0));
+        Preferences.set(PREF_FREEZES, Preferences.get(beforeDayFreezesKey(dayStart), 0));
+        Preferences.set(PREF_FREEZE_PROGRESS, Preferences.get(beforeDayProgressKey(dayStart), 0));
+        Preferences.delete(dayCompleteKey(dayStart));
+        clearBeforeDayState(dayStart);
+    }
+
+    private void clearBeforeDayState(long dayStart) {
+        Preferences.delete(beforeDayExistsKey(dayStart));
+        Preferences.delete(beforeDayStreakKey(dayStart));
+        Preferences.delete(beforeDayFreezesKey(dayStart));
+        Preferences.delete(beforeDayProgressKey(dayStart));
     }
 
     private boolean safeIsLaunchable(String packageName) {
@@ -906,12 +1264,16 @@ public class StreakApp extends Lifecycle {
         return usageBridge != null && usageBridge.isSupported();
     }
 
-    private boolean isAppEnabled(StudyApp app) {
-        return Preferences.get(enabledKey(app), true);
+    static boolean qualifiesAsCompletedDay(
+            int enabledAppCount, int enabledGoalCount, int completedGoalCount) {
+        return enabledAppCount > 0
+                && enabledGoalCount > 0
+                && completedGoalCount == enabledGoalCount;
     }
 
-    private int targetMinutes(StudyApp app) {
-        return Preferences.get(minutesKey(app), app.defaultMinutes);
+    static String launchUrlForGoal(Goal goal) {
+        return goal != null && QUIZLET_PACKAGE.equals(goal.packageName)
+                ? QUIZLET_SETS_URL : "";
     }
 
     private String nextFreezeText() {
@@ -949,17 +1311,29 @@ public class StreakApp extends Lifecycle {
     }
 
     private String dayCompleteKey(long dayStart) {
+        return "day.complete." + dayId(dayStart);
+    }
+
+    private String dayId(long dayStart) {
         Calendar c = Calendar.getInstance();
         c.setTime(new Date(dayStart));
-        return "day.complete." + c.get(Calendar.YEAR) + "." + (c.get(Calendar.MONTH) + 1) + "." + c.get(Calendar.DAY_OF_MONTH);
+        return c.get(Calendar.YEAR) + "." + (c.get(Calendar.MONTH) + 1) + "." + c.get(Calendar.DAY_OF_MONTH);
     }
 
-    private String enabledKey(StudyApp app) {
-        return "app.enabled." + app.packageName;
+    private String beforeDayExistsKey(long dayStart) {
+        return "day.before.exists." + dayId(dayStart);
     }
 
-    private String minutesKey(StudyApp app) {
-        return "app.minutes." + app.packageName;
+    private String beforeDayStreakKey(long dayStart) {
+        return "day.before.streak." + dayId(dayStart);
+    }
+
+    private String beforeDayFreezesKey(long dayStart) {
+        return "day.before.freezes." + dayId(dayStart);
+    }
+
+    private String beforeDayProgressKey(long dayStart) {
+        return "day.before.progress." + dayId(dayStart);
     }
 
     private String formatDuration(long millis) {
@@ -1020,28 +1394,17 @@ public class StreakApp extends Lifecycle {
         return value;
     }
 
-    private static final class StudyApp {
-        final String name;
-        final String packageName;
-        final int defaultMinutes;
-
-        StudyApp(String name, String packageName, int defaultMinutes) {
-            this.name = name;
-            this.packageName = packageName;
-            this.defaultMinutes = defaultMinutes;
-        }
-    }
-
     private static final class DayProgress {
-        AppProgress[] apps;
+        GoalProgress[] goals;
         boolean usageAccessGranted;
         boolean complete;
         int enabledCount;
+        int enabledAppCount;
         int completeCount;
     }
 
-    private static final class AppProgress {
-        StudyApp app;
+    private static final class GoalProgress {
+        Goal goal;
         boolean enabled;
         boolean installed;
         boolean usageAccessGranted;

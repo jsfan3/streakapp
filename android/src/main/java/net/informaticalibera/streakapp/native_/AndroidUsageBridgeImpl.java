@@ -6,12 +6,22 @@ import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.provider.Settings;
 import android.util.Log;
 import com.codename1.impl.android.AndroidNativeUtil;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class AndroidUsageBridgeImpl implements AndroidUsageBridge {
     private static final String TAG = "StreakAppUsage";
@@ -100,6 +110,68 @@ public class AndroidUsageBridgeImpl implements AndroidUsageBridge {
             total += toMillis - activeFrom;
         }
         return Math.max(0L, total);
+    }
+
+    public String listLaunchableApps() {
+        Context context = getContext();
+        JSONObject root = new JSONObject();
+        JSONArray encodedApps = new JSONArray();
+        if (context == null) {
+            try {
+                root.put("apps", encodedApps);
+            } catch (JSONException ignored) {
+            }
+            return root.toString();
+        }
+
+        PackageManager packageManager = context.getPackageManager();
+        Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
+        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        List<ResolveInfo> resolved = packageManager.queryIntentActivities(launcherIntent, 0);
+        Map<String, String> unique = new LinkedHashMap<String, String>();
+        for (ResolveInfo info : resolved) {
+            if (info.activityInfo == null || info.activityInfo.packageName == null) {
+                continue;
+            }
+            String packageName = info.activityInfo.packageName;
+            if (context.getPackageName().equals(packageName)) {
+                continue;
+            }
+            CharSequence label = info.loadLabel(packageManager);
+            String name = label == null ? packageName : label.toString().trim();
+            if (name.length() == 0) {
+                name = packageName;
+            }
+            if (!unique.containsKey(packageName)) {
+                unique.put(packageName, name);
+            }
+        }
+
+        List<Map.Entry<String, String>> apps =
+                new ArrayList<Map.Entry<String, String>>(unique.entrySet());
+        Collections.sort(apps, new Comparator<Map.Entry<String, String>>() {
+            @Override
+            public int compare(Map.Entry<String, String> left, Map.Entry<String, String> right) {
+                int byName = left.getValue().compareToIgnoreCase(right.getValue());
+                return byName != 0 ? byName : left.getKey().compareTo(right.getKey());
+            }
+        });
+        for (Map.Entry<String, String> app : apps) {
+            JSONObject encoded = new JSONObject();
+            try {
+                encoded.put("name", app.getValue());
+                encoded.put("package", app.getKey());
+                encodedApps.put(encoded);
+            } catch (JSONException ex) {
+                Log.e(TAG, "Unable to encode installed app", ex);
+            }
+        }
+        try {
+            root.put("apps", encodedApps);
+        } catch (JSONException ex) {
+            Log.e(TAG, "Unable to encode installed app list", ex);
+        }
+        return root.toString();
     }
 
     public boolean isUsageAccessGranted() {
