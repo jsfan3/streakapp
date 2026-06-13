@@ -16,6 +16,14 @@ public class AndroidUsageBridgeImpl implements AndroidUsageBridge {
         return 0L;
     }
 
+    public String listLaunchableApps() {
+        return "{\"apps\":["
+                + "{\"name\":\"AnkiDroid\",\"package\":\"com.ichi2.anki\"},"
+                + "{\"name\":\"Example Notes\",\"package\":\"com.example.notes\"},"
+                + "{\"name\":\"Paper Reader\",\"package\":\"com.example.reader\"}"
+                + "]}";
+    }
+
     public boolean isUsageAccessGranted() {
         return true;
     }

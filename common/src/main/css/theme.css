@@ -141,7 +141,7 @@ AppName, SettingsLabel {
     font-size: 3.2mm;
 }
 
-Button, PrimaryButton, SecondaryButton, SmallButton, IconButton, LinkButton, DangerButton, SettingsPicker {
+Button, PrimaryButton, SecondaryButton, SmallButton, IconButton, LinkButton, DangerButton, DeleteButton, SettingsPicker {
     font-family: "native:MainBold";
     font-size: 2.9mm;
     border-radius: 2mm;
@@ -209,6 +209,20 @@ DangerButton.pressed {
     background-color: #991b1b;
     border: 1px solid #7f1d1d;
     color: #ffffff;
+}
+
+DeleteButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: #b91c1c;
+    padding: 1.5mm;
+    margin: 0 0 0 1mm;
+}
+
+DeleteButton.pressed {
+    background-color: #fee2e2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
 }
 
 SettingsCheckBox {
@@ -414,6 +428,22 @@ Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
         font-family: "native:MainBold";
         font-size: 2.9mm;
         padding: 1mm 0;
+    }
+
+    DeleteButton {
+        background-color: transparent;
+        border: 1px solid transparent;
+        color: #fca5a5;
+        font-family: "native:MainBold";
+        font-size: 2.9mm;
+        padding: 1.5mm;
+        margin: 0 0 0 1mm;
+    }
+
+    DeleteButton.pressed {
+        background-color: #451a1a;
+        border: 1px solid #7f1d1d;
+        color: #fecaca;
     }
 
     SettingsValue {

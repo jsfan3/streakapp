@@ -12,4 +12,6 @@ public interface AndroidUsageBridge extends NativeInterface {
     boolean launchPackage(String packageName);
 
     long getForegroundMillis(String packageName, long fromMillis, long toMillis);
+
+    String listLaunchableApps();
 }
