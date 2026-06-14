@@ -1,6 +1,8 @@
 package net.informaticalibera.streakapp.native_;
 
 public class AndroidUsageBridgeImpl implements AndroidUsageBridge {
+    private long resumeSequence;
+
     public boolean launchPackage(String packageName) {
         return false;
     }
@@ -22,6 +24,13 @@ public class AndroidUsageBridgeImpl implements AndroidUsageBridge {
                 + "{\"name\":\"Example Notes\",\"package\":\"com.example.notes\"},"
                 + "{\"name\":\"Paper Reader\",\"package\":\"com.example.reader\"}"
                 + "]}";
+    }
+
+    public void startResumeMonitoring() {
+    }
+
+    public long getResumeSequence() {
+        return resumeSequence;
     }
 
     public boolean isUsageAccessGranted() {

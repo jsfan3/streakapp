@@ -14,4 +14,8 @@ public interface AndroidUsageBridge extends NativeInterface {
     long getForegroundMillis(String packageName, long fromMillis, long toMillis);
 
     String listLaunchableApps();
+
+    void startResumeMonitoring();
+
+    long getResumeSequence();
 }

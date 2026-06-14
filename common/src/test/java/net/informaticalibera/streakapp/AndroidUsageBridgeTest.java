@@ -30,6 +30,11 @@ public class AndroidUsageBridgeTest extends AbstractTest {
         }
         assertTrue(bridge.isPackageLaunchable(apps.get(0).packageName),
                 "Apps returned by the picker query should be launchable");
+        bridge.startResumeMonitoring();
+        long firstSequence = bridge.getResumeSequence();
+        bridge.startResumeMonitoring();
+        assertTrue(bridge.getResumeSequence() >= firstSequence,
+                "Resume monitoring should be idempotent and monotonic");
         return true;
     }
 }

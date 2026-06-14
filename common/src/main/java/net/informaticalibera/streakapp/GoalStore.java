@@ -24,6 +24,7 @@ final class GoalStore {
     private static final String PREF_REVISION_PREFIX = "goals.revision.v1.";
     private static final String PREF_MANUAL_DONE_PREFIX = "goals.manual.done.";
     private static final String PREF_APP_AVAILABLE_PREFIX = "app.available.";
+    private static final String PREF_NOTE_PREFIX = "goal.note.";
 
     private final List<Goal> defaults = new ArrayList<Goal>();
 
@@ -54,7 +55,7 @@ final class GoalStore {
         for (int i = 0; i < goals.size(); i++) {
             Goal goal = goals.get(i);
             if (isEnabled(goal)) {
-                result.add(goal.withMinutes(targetMinutes(goal)));
+                result.add(goal.withSettings(targetMinutes(goal), note(goal)));
             }
         }
         return result;
@@ -131,6 +132,7 @@ final class GoalStore {
                 custom.remove(i);
                 Preferences.delete(enabledKey(goal));
                 Preferences.delete(minutesKey(goal));
+                Preferences.delete(noteKey(goal));
                 changed = true;
             }
         }
@@ -158,6 +160,19 @@ final class GoalStore {
     void setTargetMinutes(Goal goal, int minutes) {
         if (goal.isApp()) {
             Preferences.set(minutesKey(goal), minutes);
+        }
+    }
+
+    String note(Goal goal) {
+        return Preferences.get(noteKey(goal), "");
+    }
+
+    void setNote(Goal goal, String note) {
+        String value = note == null ? "" : note;
+        if (value.length() == 0) {
+            Preferences.delete(noteKey(goal));
+        } else {
+            Preferences.set(noteKey(goal), value);
         }
     }
 
@@ -220,6 +235,7 @@ final class GoalStore {
         }
         saveCustomGoals(custom);
         Preferences.delete(enabledKey(goal));
+        Preferences.delete(noteKey(goal));
         if (goal.isApp()) {
             Preferences.delete(minutesKey(goal));
         }
@@ -293,6 +309,7 @@ final class GoalStore {
             item.put("package", goal.packageName);
             item.put("minutes", Integer.valueOf(goal.defaultMinutes));
             item.put("removable", Boolean.valueOf(goal.removable));
+            item.put("note", goal.note);
             encoded.add(item);
         }
         root.put("goals", encoded);
@@ -323,9 +340,10 @@ final class GoalStore {
                 String packageName = stringValue(map.get("package"));
                 int minutes = intValue(map.get("minutes"), 0);
                 boolean removable = booleanValue(map.get("removable"), true);
+                String note = stringValue(map.get("note"));
                 if (id.length() > 0 && name.length() > 0
                         && (TYPE_APP.equals(type) || TYPE_MANUAL.equals(type))) {
-                    result.add(new Goal(id, name, type, packageName, minutes, removable));
+                    result.add(new Goal(id, name, type, packageName, minutes, removable, note));
                 }
             }
             return result;
@@ -409,6 +427,10 @@ final class GoalStore {
         return "app.minutes." + goal.packageName;
     }
 
+    private String noteKey(Goal goal) {
+        return PREF_NOTE_PREFIX + goal.id;
+    }
+
     private String manualDoneKey(Goal goal, String dayId) {
         return PREF_MANUAL_DONE_PREFIX + goal.id + "." + dayId;
     }
@@ -448,27 +470,30 @@ final class GoalStore {
         final String packageName;
         final int defaultMinutes;
         final boolean removable;
+        final String note;
 
         private Goal(String id, String name, String type, String packageName,
-                int defaultMinutes, boolean removable) {
+                int defaultMinutes, boolean removable, String note) {
             this.id = id;
             this.name = name;
             this.type = type;
             this.packageName = packageName == null ? "" : packageName;
             this.defaultMinutes = defaultMinutes;
             this.removable = removable;
+            this.note = note == null ? "" : note;
         }
 
         static Goal app(String name, String packageName, int minutes, boolean removable) {
-            return new Goal("app." + packageName, name, TYPE_APP, packageName, minutes, removable);
+            return new Goal(
+                    "app." + packageName, name, TYPE_APP, packageName, minutes, removable, "");
         }
 
         static Goal manual(String id, String name, boolean removable) {
-            return new Goal(id, name, TYPE_MANUAL, "", 0, removable);
+            return new Goal(id, name, TYPE_MANUAL, "", 0, removable, "");
         }
 
-        Goal withMinutes(int minutes) {
-            return new Goal(id, name, type, packageName, minutes, removable);
+        Goal withSettings(int minutes, String note) {
+            return new Goal(id, name, type, packageName, minutes, removable, note);
         }
 
         boolean isApp() {

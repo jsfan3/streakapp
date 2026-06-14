@@ -99,6 +99,14 @@ HeroMeta, BodyText, AppMeta, MutedText {
     font-size: 2.8mm;
 }
 
+GoalNote {
+    color: #667085;
+    font-family: "native:MainRegular";
+    font-style: italic;
+    font-size: 2.7mm;
+    padding: 1.2mm 0 0 0;
+}
+
 GoodText {
     color: #047857;
     font-family: "native:MainRegular";
@@ -231,7 +239,14 @@ SettingsCheckBox {
     font-size: 3mm;
 }
 
-SettingsField {
+SettingsNoteLabel {
+    color: #526070;
+    font-family: "native:MainBold";
+    font-size: 2.5mm;
+    padding: 1.5mm 0 0.6mm 0;
+}
+
+SettingsField, GoalNoteField {
     color: #111827;
     background-color: #ffffff;
     border: 1px solid #c7d4e6;
@@ -240,6 +255,11 @@ SettingsField {
     margin: 0 0 0 2mm;
     font-family: "native:MainRegular";
     font-size: 3mm;
+}
+
+GoalNoteField {
+    margin: 0;
+    padding: 1.2mm;
 }
 
 DialogBody, DialogTitle {
@@ -344,6 +364,14 @@ Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
         color: #aeb8c2;
         font-family: "native:MainRegular";
         font-size: 2.8mm;
+    }
+
+    GoalNote {
+        color: #94a3b8;
+        font-family: "native:MainRegular";
+        font-style: italic;
+        font-size: 2.7mm;
+        padding: 1.2mm 0 0 0;
     }
 
     HeroCaption {
@@ -459,7 +487,14 @@ Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
         font-size: 3mm;
     }
 
-    SettingsField {
+    SettingsNoteLabel {
+        color: #aeb8c2;
+        font-family: "native:MainBold";
+        font-size: 2.5mm;
+        padding: 1.5mm 0 0.6mm 0;
+    }
+
+    SettingsField, GoalNoteField {
         color: #ffffff;
         background-color: #101418;
         border: 1px solid #475569;
@@ -468,6 +503,11 @@ Scroll, ScrollThumb, HorizontalScroll, HorizontalScrollThumb {
         margin: 0 0 0 2mm;
         font-family: "native:MainRegular";
         font-size: 3mm;
+    }
+
+    GoalNoteField {
+        margin: 0;
+        padding: 1.2mm;
     }
 
     DialogBody, DialogTitle {
