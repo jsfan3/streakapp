@@ -15,13 +15,16 @@ public class GoalStoreTest extends AbstractTest {
     @Override
     public boolean runTest() {
         List<Goal> goals = new ArrayList<Goal>();
-        goals.add(Goal.app("Example", "com.example.app", 12, true));
+        goals.add(Goal.app("Example", "com.example.app", 12, true)
+                .withSettings(12, "Review chapters 4-6\nThen revise vocabulary."));
         goals.add(Goal.manual("manual.walk", "Walk", true));
 
         List<Goal> decoded = GoalStore.parseGoals(GoalStore.serializeGoals(goals));
         assertNotNull(decoded, "Serialized goals should be readable");
         assertEqual(2, decoded.size(), "Both goals should survive serialization");
         assertEqual("com.example.app", decoded.get(0).packageName, "App package should be preserved");
+        assertEqual("Review chapters 4-6\nThen revise vocabulary.", decoded.get(0).note,
+                "Multiline notes should survive serialization");
         assertTrue(decoded.get(1).isManual(), "Manual goal type should be preserved");
 
         List<Long> revisions = new ArrayList<Long>();
@@ -41,6 +44,10 @@ public class GoalStoreTest extends AbstractTest {
 
         Goal custom = store.addApp("Temporary", "com.example.temporary", 5);
         assertNotNull(custom, "A custom app should be added before reconciliation");
+        String longNote = "A note can be as long as needed. "
+                + "This verifies that goal notes are not truncated by the model.";
+        store.setNote(custom, longNote);
+        assertEqual(longNote, store.note(custom), "Custom goal notes should be persisted");
         List<InstalledApp> installed = defaultInstalledApps();
         store.reconcileInstalledApps(installed);
         assertTrue(!store.containsApp("com.example.temporary"),

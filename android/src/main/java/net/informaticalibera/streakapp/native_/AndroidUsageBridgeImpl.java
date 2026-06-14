@@ -8,8 +8,10 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.provider.Settings;
+import android.os.Bundle;
 import android.util.Log;
 import com.codename1.impl.android.AndroidNativeUtil;
+import com.codename1.impl.android.LifecycleListener;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,6 +28,45 @@ import org.json.JSONObject;
 public class AndroidUsageBridgeImpl implements AndroidUsageBridge {
     private static final String TAG = "StreakAppUsage";
     private static final long LOOKBACK_MILLIS = 24L * 60L * 60L * 1000L;
+    private static volatile long resumeSequence;
+    private static boolean resumeMonitoringStarted;
+    private static final LifecycleListener RESUME_LISTENER = new LifecycleListener() {
+        @Override
+        public void onCreate(Bundle savedInstanceState) {
+        }
+
+        @Override
+        public void onResume() {
+            resumeSequence++;
+        }
+
+        @Override
+        public void onPause() {
+        }
+
+        @Override
+        public void onDestroy() {
+        }
+
+        @Override
+        public void onSaveInstanceState(Bundle bundle) {
+        }
+
+        @Override
+        public void onLowMemory() {
+        }
+    };
+
+    public synchronized void startResumeMonitoring() {
+        if (!resumeMonitoringStarted) {
+            AndroidNativeUtil.addLifecycleListener(RESUME_LISTENER);
+            resumeMonitoringStarted = true;
+        }
+    }
+
+    public long getResumeSequence() {
+        return resumeSequence;
+    }
 
     public boolean launchPackage(String packageName) {
         Context context = getContext();

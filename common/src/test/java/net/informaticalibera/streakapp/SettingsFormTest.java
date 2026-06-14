@@ -3,6 +3,7 @@ package net.informaticalibera.streakapp;
 import com.codename1.testing.AbstractTest;
 import com.codename1.testing.TestUtils;
 import com.codename1.ui.Display;
+import com.codename1.ui.TextArea;
 import java.util.ArrayList;
 import java.util.List;
 import net.informaticalibera.streakapp.GoalStore.InstalledApp;
@@ -34,6 +35,8 @@ public class SettingsFormTest extends AbstractTest {
                 "Default app goals should remain available");
         assertNotNull(TestUtils.findByName("goalRow.app.com.duolingo"),
                 "All default app goals should be rendered");
+        assertTrue(TestUtils.findByName("goalNote.app.com.duolingo") instanceof TextArea,
+                "Every goal should expose a multiline note editor");
 
         installed.remove(1);
         store.reconcileInstalledApps(installed);

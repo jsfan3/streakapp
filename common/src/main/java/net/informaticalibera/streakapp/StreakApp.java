@@ -65,6 +65,7 @@ public class StreakApp extends Lifecycle {
     private static final int RESUME_STATS_SETTLE_MILLIS = 2000;
     private static final int RETURN_REFRESH_INTERVAL_MILLIS = 2000;
     private static final int RETURN_REFRESH_ATTEMPTS = 3;
+    private static final int FOREGROUND_RESUME_POLL_MILLIS = 500;
     private static final int MIN_REFRESH_BUSY_MILLIS = 500;
     private static final int ANDROID_BACK_KEY = -23452;
     private static final String QUIZLET_PACKAGE = "com.quizlet.quizletandroid";
@@ -76,8 +77,10 @@ public class StreakApp extends Lifecycle {
     private Form settingsForm;
     private DayProgress lastProgress;
     private UITimer returnRefreshTimer;
+    private UITimer foregroundResumeTimer;
     private Component refreshCommandComponent;
     private int returnRefreshAttemptsRemaining;
+    private long lastNativeResumeSequence;
     private boolean booted;
     private volatile boolean refreshInProgress;
 
@@ -92,6 +95,7 @@ public class StreakApp extends Lifecycle {
     @Override
     public void start() {
         super.start();
+        acknowledgeNativeResume();
         Form current = CN.getCurrentForm();
         if (booted && (current == homeForm || homeForm == null)) {
             refreshHomeAfterResume();
@@ -103,6 +107,7 @@ public class StreakApp extends Lifecycle {
     @Override
     public void runApp() {
         usageBridge = (AndroidUsageBridge)NativeLookup.create(AndroidUsageBridge.class);
+        initializeNativeResumeMonitoring();
         booted = true;
         refreshHomeAsync(false);
     }
@@ -424,6 +429,11 @@ public class StreakApp extends Lifecycle {
                     formatDuration(progress.foregroundMillis), progress.targetMinutes),
                     progress.complete ? "GoodText" : "MutedText"));
         }
+        if (progress.goal.note.length() > 0) {
+            SpanLabel note = span(progress.goal.note, "GoalNote");
+            note.setName("goalNoteHome." + progress.goal.id);
+            details.add(note);
+        }
 
         Button action;
         if (progress.goal.isManual()) {
@@ -515,6 +525,62 @@ public class StreakApp extends Lifecycle {
         });
     }
 
+    private void initializeNativeResumeMonitoring() {
+        if (!isNativeReady()) {
+            return;
+        }
+        try {
+            usageBridge.startResumeMonitoring();
+            lastNativeResumeSequence = usageBridge.getResumeSequence();
+        } catch (Throwable t) {
+            Log.e(t);
+        }
+    }
+
+    private void bindForegroundResumeTimer(Form form) {
+        if (foregroundResumeTimer != null) {
+            foregroundResumeTimer.cancel();
+            foregroundResumeTimer = null;
+        }
+        if (!isNativeReady() || form == null) {
+            return;
+        }
+        foregroundResumeTimer = UITimer.timer(
+                FOREGROUND_RESUME_POLL_MILLIS, true, form, this::checkNativeResume);
+    }
+
+    private void checkNativeResume() {
+        if (!isNativeReady()) {
+            return;
+        }
+        long sequence = safeResumeSequence();
+        if (sequence == lastNativeResumeSequence) {
+            return;
+        }
+        lastNativeResumeSequence = sequence;
+        Form current = CN.getCurrentForm();
+        if (current == homeForm) {
+            refreshHomeAfterResume();
+        } else if (current == settingsForm) {
+            refreshSettingsAfterResume();
+        }
+    }
+
+    private void acknowledgeNativeResume() {
+        if (isNativeReady()) {
+            lastNativeResumeSequence = safeResumeSequence();
+        }
+    }
+
+    private long safeResumeSequence() {
+        try {
+            return usageBridge.getResumeSequence();
+        } catch (Throwable t) {
+            Log.e(t);
+            return lastNativeResumeSequence;
+        }
+    }
+
     void showSettings() {
         settingsForm = createBackForm(text("settings.title", "Settings"));
         settingsForm.setName("settingsForm");
@@ -565,10 +631,12 @@ public class StreakApp extends Lifecycle {
     }
 
     private Container createGoalSettingsRow(Goal goal) {
-        Container row = new Container(new BorderLayout());
+        Container row = new Container(BoxLayout.y());
         row.setUIID("SettingsRow");
         row.setName("goalRow." + goal.id);
 
+        Container header = new Container(new BorderLayout());
+        header.getAllStyles().setBgTransparency(0);
         CheckBox enabled = new CheckBox(goal.name);
         enabled.setName("goalEnabled." + goal.id);
         enabled.setUIID("SettingsCheckBox");
@@ -605,11 +673,29 @@ public class StreakApp extends Lifecycle {
             remove.addActionListener(e -> removeGoal(goal));
             controls.add(remove);
         }
-        row.add(BorderLayout.CENTER, enabled);
+        header.add(BorderLayout.CENTER, enabled);
         if (controls.getComponentCount() > 0) {
-            row.add(BorderLayout.EAST, controls);
+            header.add(BorderLayout.EAST, controls);
         }
+        row.add(header);
+
+        Label noteLabel = label(text("settings.note", "Note"), "SettingsNoteLabel");
+        TextArea note = new TextArea(goalStore.note(goal), 1, 40, TextArea.ANY);
+        note.setName("goalNote." + goal.id);
+        note.setUIID("GoalNoteField");
+        note.setHint(text("settings.noteHint", "Optional note"));
+        note.setGrowByContent(true);
+        note.setGrowLimit(4);
+        note.addDataChangedListener((type, index) -> saveGoalNote(goal, note.getText()));
+        row.add(noteLabel);
+        row.add(note);
         return row;
+    }
+
+    private void saveGoalNote(Goal goal, String note) {
+        goalStore.setNote(goal, note);
+        recordTodayConfiguration();
+        lastProgress = null;
     }
 
     private void showInstalledAppPicker() {
@@ -839,6 +925,7 @@ public class StreakApp extends Lifecycle {
         } else {
             form.show();
         }
+        bindForegroundResumeTimer(form);
         AutoShrinkSupport.refreshTitleComponent(form);
         form.revalidateLater();
         AutoShrinkSupport.resetAndApplyLater(form);
